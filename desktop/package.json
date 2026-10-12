@@ -1,0 +1,43 @@
+{
+  "name": "multilogin-desktop",
+  "version": "1.0.0",
+  "description": "Gerenciador de perfis de navegador com sessão isolada",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.multilogin.desktop",
+    "productName": "MultiLogin",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "icon.png",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png"
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}
