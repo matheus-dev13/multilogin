@@ -17,7 +17,7 @@ function createMainWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'MultiLogin',
+    title: 'ObyLogin',
     backgroundColor: '#0f1117',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -91,7 +91,7 @@ function setupViewEvents(win, view, profileId, profile) {
     sendTabsState(win, profileId);
     var state = profileTabs.get(profileId);
     if (state && state.views[state.activeIndex] === view) {
-      win.setTitle('MultiLogin - ' + (profile.name || '') + ' - ' + wc.getTitle());
+      win.setTitle('ObyLogin - ' + (profile.name || '') + ' - ' + wc.getTitle());
     }
   });
 
@@ -188,7 +188,7 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     const win = new BrowserWindow({
       width: profile.screen_w || 1920,
       height: profile.screen_h || 1080,
-      title: 'MultiLogin - ' + profile.name,
+      title: 'ObyLogin - ' + profile.name,
       backgroundColor: '#202124',
       webPreferences: {
         preload: path.join(__dirname, 'browser-preload.js'),

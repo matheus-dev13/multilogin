@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MultiLogin Desktop</title>
+<title>ObyLogin Desktop</title>
 <style>
 :root{
   --bg:#0f1117;--bg2:#161822;--bg3:#1e2030;--surface:#252840;--surface2:#2d3154;
@@ -178,7 +178,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
   <aside class="sidebar">
     <div class="sidebar-brand">
       <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect width="26" height="26" rx="6" fill="#6366f1"/><path d="M8 9.5A1.5 1.5 0 019.5 8h2A1.5 1.5 0 0113 9.5v7a1.5 1.5 0 01-1.5 1.5h-2A1.5 1.5 0 018 16.5v-7z" fill="#fff" opacity=".9"/><path d="M14 9.5A1.5 1.5 0 0115.5 8h2A1.5 1.5 0 0119 9.5v7a1.5 1.5 0 01-1.5 1.5h-2A1.5 1.5 0 0114 16.5v-7z" fill="#fff" opacity=".55"/></svg>
-      <span>MultiLogin<small>PRO</small></span>
+      <span>ObyLogin<small>PRO</small></span>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Menu</div>
@@ -205,7 +205,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
         Ajustes
       </button>
     </nav>
-    <div class="sidebar-foot">MultiLogin v1.0<br>Perfis isolados de navegador</div>
+    <div class="sidebar-foot">ObyLogin v1.0<br>Perfis isolados de navegador</div>
   </aside>
 
   <header class="header">
@@ -1095,7 +1095,7 @@ window.checkProxy = function(){
 };
 
 window.exportAll = function(){
-  downloadJSON({ profiles: profiles, groups: groups }, 'multilogin_backup_'+new Date().toISOString().slice(0,10)+'.json');
+  downloadJSON({ profiles: profiles, groups: groups }, 'obylogin_backup_'+new Date().toISOString().slice(0,10)+'.json');
   showToast('Backup exportado!','success');
 };
 window.importData = function(){ $('fileInput').click(); };
@@ -1186,7 +1186,7 @@ function buildPlaywrightScript(p){
   if (cfg.geolocation){ ctx.geolocation = cfg.geolocation; ctx.permissions = ['geolocation']; }
   if (cfg.proxy) ctx.proxy = cfg.proxy;
   var startUrl = p.start_url || 'https://www.google.com';
-  return "// MultiLogin - perfil: " + p.name + "\n" +
+  return "// ObyLogin - perfil: " + p.name + "\n" +
     "// Sessao isolada: cada perfil usa seu proprio userDataDir, entao cookies,\n" +
     "// logins e armazenamento de um cliente NAO se misturam com os de outro.\n" +
     "// Requisitos: npm i playwright  (e: npx playwright install chromium)\n" +
@@ -1209,7 +1209,7 @@ function buildPuppeteerScript(p){
   var args = ['--no-sandbox', '--window-size=' + cfg.viewport.width + ',' + cfg.viewport.height, '--lang=' + cfg.locale];
   if (cfg.proxy) args.push('--proxy-server=' + cfg.proxy.server);
   var startUrl = p.start_url || 'https://www.google.com';
-  return "// MultiLogin - perfil: " + p.name + "\n" +
+  return "// ObyLogin - perfil: " + p.name + "\n" +
     "// Sessao isolada: cada perfil usa seu proprio userDataDir, entao cookies,\n" +
     "// logins e armazenamento de um cliente NAO se misturam com os de outro.\n" +
     "// Requisitos: npm i puppeteer\n" +

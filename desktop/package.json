@@ -1,7 +1,7 @@
 {
-  "name": "multilogin-desktop",
+  "name": "obylogin-desktop",
   "version": "1.0.0",
-  "description": "Gerenciador de perfis de navegador com sessão isolada",
+  "description": "ObyLogin - Gerenciador de perfis de navegador com sessão isolada",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,8 +10,8 @@
     "build:linux": "electron-builder --linux"
   },
   "build": {
-    "appId": "com.multilogin.desktop",
-    "productName": "MultiLogin",
+    "appId": "com.obylogin.desktop",
+    "productName": "ObyLogin",
     "directories": {
       "output": "dist"
     },
@@ -37,7 +37,7 @@
       "installerHeaderIcon": "icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MultiLogin",
+      "shortcutName": "ObyLogin",
       "runAfterFinish": true
     },
     "linux": {
