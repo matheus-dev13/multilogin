@@ -18,6 +18,7 @@ function createMainWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'ObyLogin',
+    icon: path.join(__dirname, 'icon.png'),
     backgroundColor: '#0f1117',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -189,6 +190,7 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       width: profile.screen_w || 1920,
       height: profile.screen_h || 1080,
       title: 'ObyLogin - ' + profile.name,
+      icon: path.join(__dirname, 'icon.png'),
       backgroundColor: '#202124',
       webPreferences: {
         preload: path.join(__dirname, 'browser-preload.js'),
