@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MultiLogin Browser</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--tab-bg:#202124;--tab-active:#323639;--tab-hover:#2a2d30;--toolbar-bg:#323639;--border:#3c4043;--text:#e8eaed;--text-muted:#9aa0a6;--url-bg:#202124;--accent:#8ab4f8;--close-hover:#ff4444}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--tab-bg);color:var(--text);overflow:hidden;user-select:none;-webkit-app-region:drag}
+button,input{-webkit-app-region:no-drag}
+
+.tab-bar{display:flex;align-items:flex-end;height:38px;padding:6px 8px 0 80px;background:var(--tab-bg);gap:0}
+.tab{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px 8px 0 0;background:transparent;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;max-width:240px;min-width:60px;flex:0 1 200px;transition:background .1s}
+.tab:hover{background:var(--tab-hover)}
+.tab.active{background:var(--tab-active);color:var(--text)}
+.tab-favicon{width:16px;height:16px;border-radius:2px;flex-shrink:0;background:#5f6368;display:grid;place-items:center}
+.tab-favicon img{width:16px;height:16px;border-radius:2px}
+.tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
+.tab-close{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px;flex-shrink:0;padding:0;line-height:1}
+.tab-close:hover{background:var(--close-hover);color:#fff}
+.tab-new{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:20px;margin-left:4px;flex-shrink:0;align-self:center}
+.tab-new:hover{background:var(--tab-hover)}
+
+.toolbar{display:flex;align-items:center;gap:4px;height:36px;padding:0 8px;background:var(--toolbar-bg)}
+.nav-btn{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer}
+.nav-btn:hover:not(:disabled){background:var(--tab-hover);color:var(--text)}
+.nav-btn:disabled{opacity:.3;cursor:default}
+.nav-btn svg{width:18px;height:18px}
+
+.url-bar{flex:1;height:28px;display:flex;align-items:center;background:var(--url-bg);border-radius:14px;padding:0 12px;margin:0 4px}
+.url-bar:focus-within{outline:2px solid var(--accent);outline-offset:-2px}
+.url-icon{color:var(--text-muted);margin-right:6px;flex-shrink:0;display:flex;align-items:center}
+.url-icon svg{width:14px;height:14px}
+.url-input{flex:1;background:none;border:none;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.url-input::placeholder{color:var(--text-muted)}
+.url-input::selection{background:var(--accent);color:#000}
+
+.profile-badge{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;color:var(--accent);margin-left:4px;flex-shrink:0}
+
+.loading-bar{height:2px;background:transparent;position:relative;overflow:hidden}
+.loading-bar.active{background:var(--toolbar-bg)}
+.loading-bar.active::after{content:'';position:absolute;left:-40%;width:40%;height:100%;background:var(--accent);animation:loading 1s ease-in-out infinite}
+@keyframes loading{0%{left:-40%}100%{left:100%}}
+</style>
+</head>
+<body>
+
+<div class="tab-bar" id="tabBar">
+  <button class="tab-new" id="newTabBtn" title="Nova aba">+</button>
+</div>
+
+<div class="toolbar">
+  <button class="nav-btn" id="backBtn" disabled title="Voltar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button class="nav-btn" id="forwardBtn" disabled title="Avancar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+  <button class="nav-btn" id="reloadBtn" title="Recarregar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+  </button>
+
+  <div class="url-bar">
+    <div class="url-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    </div>
+    <input type="text" class="url-input" id="urlInput" placeholder="Pesquisar ou digitar URL" spellcheck="false" autocomplete="off">
+  </div>
+
+  <div class="profile-badge" id="profileBadge"></div>
+</div>
+
+<div class="loading-bar" id="loadingBar"></div>
+
+<script>
+(function(){
+  var urlInput = document.getElementById('urlInput');
+  var backBtn = document.getElementById('backBtn');
+  var forwardBtn = document.getElementById('forwardBtn');
+  var reloadBtn = document.getElementById('reloadBtn');
+  var newTabBtn = document.getElementById('newTabBtn');
+  var tabBar = document.getElementById('tabBar');
+  var loadingBar = document.getElementById('loadingBar');
+  var profileBadge = document.getElementById('profileBadge');
+  var isLoading = false;
+
+  function normalizeUrl(input) {
+    input = input.trim();
+    if (!input) return '';
+    if (/^https?:\/\//i.test(input)) return input;
+    if (/^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)+[a-zA-Z]{2,}/.test(input)) return 'https://' + input;
+    return 'https://www.google.com/search?q=' + encodeURIComponent(input);
+  }
+
+  urlInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var url = normalizeUrl(urlInput.value);
+      if (url) window.browserAPI.navigate(url);
+      urlInput.blur();
+    }
+  });
+
+  urlInput.addEventListener('focus', function() {
+    setTimeout(function(){ urlInput.select(); }, 0);
+  });
+
+  backBtn.addEventListener('click', function(){ window.browserAPI.goBack(); });
+  forwardBtn.addEventListener('click', function(){ window.browserAPI.goForward(); });
+  reloadBtn.addEventListener('click', function(){
+    if (isLoading) window.browserAPI.stop();
+    else window.browserAPI.reload();
+  });
+  newTabBtn.addEventListener('click', function(){ window.browserAPI.newTab('https://www.google.com'); });
+
+  window.browserAPI.onUrlChanged(function(url) {
+    if (document.activeElement !== urlInput) {
+      urlInput.value = url || '';
+    }
+  });
+
+  window.browserAPI.onLoadingChanged(function(loading) {
+    isLoading = loading;
+    loadingBar.className = loading ? 'loading-bar active' : 'loading-bar';
+    if (loading) {
+      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      reloadBtn.title = 'Parar';
+    } else {
+      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>';
+      reloadBtn.title = 'Recarregar';
+    }
+  });
+
+  window.browserAPI.onCanGoBackChanged(function(val) {
+    backBtn.disabled = !val;
+  });
+
+  window.browserAPI.onCanGoForwardChanged(function(val) {
+    forwardBtn.disabled = !val;
+  });
+
+  window.browserAPI.onTabsUpdated(function(tabs, activeIdx) {
+    var btns = tabBar.querySelectorAll('.tab');
+    btns.forEach(function(b){ b.remove(); });
+    tabs.forEach(function(tab, i) {
+      var el = document.createElement('button');
+      el.className = 'tab' + (i === activeIdx ? ' active' : '');
+      var faviconHtml = tab.favicon
+        ? '<div class="tab-favicon"><img src="'+tab.favicon+'" onerror="this.parentElement.innerHTML=\'&#x1F310;\'"></div>'
+        : '<div class="tab-favicon">&#x1F310;</div>';
+      el.innerHTML = faviconHtml + '<span class="tab-title">' + escHtml(tab.title || 'Nova aba') + '</span>' + (tabs.length > 1 ? '<button class="tab-close" data-idx="'+i+'">&#x2715;</button>' : '');
+      el.addEventListener('click', function(e) {
+        if (e.target.classList.contains('tab-close')) {
+          window.browserAPI.closeTab(parseInt(e.target.dataset.idx));
+        } else {
+          window.browserAPI.switchTab(i);
+        }
+      });
+      tabBar.insertBefore(el, newTabBtn);
+    });
+  });
+
+  window.browserAPI.getProfileName().then(function(name) {
+    if (name) profileBadge.textContent = name;
+  });
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'l') { e.preventDefault(); urlInput.focus(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 't') { e.preventDefault(); window.browserAPI.newTab('https://www.google.com'); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'w') { e.preventDefault(); window.browserAPI.closeTab(-1); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') { e.preventDefault(); window.browserAPI.reload(); }
+    if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); window.browserAPI.goBack(); }
+    if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); window.browserAPI.goForward(); }
+  });
+})();
+</script>
+</body>
+</html>

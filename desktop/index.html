@@ -244,10 +244,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
     <div id="page-profiles" style="display:none">
       <div class="group-bar" id="groupBar"></div>
       <div class="toolbar">
-        <div class="info" id="profileInfo">0 perfis</div>
+        <button class="btn btn-primary btn-sm" id="bulkOpenBtn" onclick="bulkOpen()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Abrir
+        </button>
+        <button class="btn btn-sm" id="bulkCloseBtn" onclick="bulkClose()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Fechar
+        </button>
+        <button class="btn btn-sm" onclick="exportAll()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar
+        </button>
+        <button class="btn btn-sm" id="bulkDuplicateBtn" onclick="bulkDuplicate()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Duplicar
+        </button>
+        <button class="btn btn-sm btn-danger" id="bulkDeleteBtn" onclick="bulkDelete()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          Excluir
+        </button>
         <div class="toolbar-right">
-          <button class="btn btn-sm" id="bulkDeleteBtn" style="display:none" onclick="bulkDelete()">Excluir selecionados</button>
-          <button class="btn btn-sm" id="bulkDuplicateBtn" style="display:none" onclick="bulkDuplicate()">Duplicar selecionados</button>
+          <span class="info" id="profileInfo">Total: 0</span>
         </div>
       </div>
       <div id="profileList"></div>
@@ -665,26 +683,41 @@ function renderDashboard(){
 function renderProfiles(){
   renderGroupBar();
   var list = profiles.slice();
-  if (activeGroup) list = list.filter(function(p){ return p.group_id === activeGroup; });
+  if (activeGroup === 'none') list = list.filter(function(p){ return !p.group_id; });
+  else if (activeGroup) list = list.filter(function(p){ return p.group_id === activeGroup; });
   if (searchQuery){
     var q = searchQuery.toLowerCase();
     list = list.filter(function(p){ return p.name.toLowerCase().indexOf(q)>=0 || (p.notes||'').toLowerCase().indexOf(q)>=0 || (p.tags||[]).some(function(t){ return t.toLowerCase().indexOf(q)>=0; }); });
   }
   list.sort(function(a,b){ return new Date(b.updated_at||b.created_at).getTime() - new Date(a.updated_at||a.created_at).getTime(); });
-  $('profileInfo').textContent = list.length + ' perfil' + (list.length!==1?'is':'');
+  $('profileInfo').textContent = 'Total: ' + list.length;
   $('navProfileCount').textContent = profiles.length;
   if (!list.length){
     $('profileList').innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3>'+(profiles.length?'Nenhum resultado':'Nenhum perfil')+'</h3><p>'+(profiles.length?'Tente outra busca ou grupo.':'Crie seu primeiro perfil de navegador.')+'</p>'+(profiles.length?'':'<button class="btn btn-primary" onclick="openCreateProfile()">Criar perfil</button>')+'</div>';
     return;
   }
-  var html = '<table class="profile-table"><thead><tr><th class="check"><input type="checkbox" onchange="toggleAll(this.checked)"></th><th>Perfil</th><th>Status</th><th>Proxy</th><th>Plataforma</th><th>Tags</th><th>Criado</th><th></th></tr></thead><tbody>';
-  list.forEach(function(p){
+  var html = '<table class="profile-table"><thead><tr><th class="check"><input type="checkbox" onchange="toggleAll(this.checked)"></th><th style="width:50px">N°</th><th style="width:80px">ID</th><th>Grupo</th><th>Nome</th><th>IP</th><th>Última</th><th>Plataforma</th><th>Tags</th><th>Observação</th><th>Ação</th></tr></thead><tbody>';
+  list.forEach(function(p, idx){
     var g = groups.find(function(x){ return x.id === p.group_id; });
-    var proxyTxt = p.proxy_type && p.proxy_type !== 'none' ? p.proxy_type.toUpperCase() + ' ' + (p.proxy_host||'') : 'Direto';
-    var proxyClass = p.proxy_type && p.proxy_type !== 'none' ? '' : ' none';
+    var proxyIp = p.proxy_type && p.proxy_type !== 'none' && p.proxy_host ? p.proxy_host + ':' + (p.proxy_port||'') : '';
+    var proxyFlag = proxyIp ? '<span style="color:var(--green)">&#x25CF;</span> ' + esc(proxyIp) : '<span style="color:var(--faint);font-style:italic">-</span>';
     var tags = (p.tags||[]).slice(0,3).map(function(t){ return '<span class="tag" style="background:var(--primary-bg);color:var(--primary-h)">'+esc(t)+'</span>'; }).join('');
-    var openBtn = p.status === 'running' ? '<button class="btn btn-sm btn-danger" onclick="stopProfile(\''+p.id+'\')">Parar</button>' : '<button class="btn btn-sm btn-primary" onclick="openProfile(\''+p.id+'\')">Abrir</button>';
-    html += '<tr oncontextmenu="showCtx(event,\''+p.id+'\')"  ><td class="check"><input type="checkbox" '+(selectedIds.has(p.id)?'checked':'')+' onchange="toggleSelect(\''+p.id+'\',this.checked)"></td><td><div class="profile-name"><div class="profile-avatar" style="background:'+getProfileColor(p)+'">'+getInitials(p.name)+'</div><div><div class="profile-nm">'+esc(p.name)+'</div><div class="profile-id">'+(g?'<span style="color:'+g.color+'">'+esc(g.name)+'</span> · ':'')+p.id.slice(0,10)+'</div></div></div></td><td><span class="status-dot '+p.status+'">'+statusLabel(p.status)+'</span></td><td><span class="proxy-info'+proxyClass+'">'+esc(proxyTxt)+'</span></td><td style="font-size:13px;color:var(--muted)">'+(p.platform||'Windows')+'</td><td>'+tags+'</td><td style="font-size:13px;color:var(--muted)">'+fmt(p.created_at)+'</td><td><div class="actions-cell">'+openBtn+'<button class="btn btn-sm btn-icon" onclick="editProfile(\''+p.id+'\')" title="Editar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-sm btn-icon" onclick="showCtx(event,\''+p.id+'\')" title="Mais"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td></tr>';
+    var openBtn = p.status === 'running' ? '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();stopProfile(\''+p.id+'\')">Fechar</button>' : '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openProfile(\''+p.id+'\')">Abrir</button>';
+    var groupName = g ? esc(g.name) : '-';
+    var notes = p.notes ? esc(p.notes.length > 30 ? p.notes.slice(0,30)+'...' : p.notes) : '<span style="color:var(--faint)">-</span>';
+    html += '<tr oncontextmenu="showCtx(event,\''+p.id+'\')" ondblclick="openProfile(\''+p.id+'\')">';
+    html += '<td class="check"><input type="checkbox" '+(selectedIds.has(p.id)?'checked':'')+' onchange="toggleSelect(\''+p.id+'\',this.checked)"></td>';
+    html += '<td style="font-size:13px;color:var(--muted)">'+(idx+1)+'</td>';
+    html += '<td><span class="profile-id" style="font-size:12px">'+p.id.slice(0,8)+'</span></td>';
+    html += '<td style="font-size:13px">'+(g?'<span style="color:'+g.color+'">'+groupName+'</span>':groupName)+'</td>';
+    html += '<td><div class="profile-name"><div class="profile-avatar" style="background:'+getProfileColor(p)+'">'+getInitials(p.name)+'</div><div><div class="profile-nm">'+esc(p.name)+'</div></div></div></td>';
+    html += '<td style="font-size:12px">'+proxyFlag+'</td>';
+    html += '<td style="font-size:12px;color:var(--muted)">'+fmt(p.updated_at||p.created_at)+'</td>';
+    html += '<td style="font-size:13px;color:var(--muted)"><span class="status-dot '+p.status+'" style="font-size:12px">'+statusLabel(p.status)+'</span></td>';
+    html += '<td>'+tags+'</td>';
+    html += '<td style="font-size:12px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+notes+'</td>';
+    html += '<td><div class="actions-cell">'+openBtn+'<button class="btn btn-sm btn-icon" onclick="event.stopPropagation();editProfile(\''+p.id+'\')" title="Editar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-sm btn-icon" onclick="event.stopPropagation();showCtx(event,\''+p.id+'\')" title="Mais"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>';
+    html += '</tr>';
   });
   html += '</tbody></table>';
   $('profileList').innerHTML = html;
@@ -948,6 +981,14 @@ function updateBulkButtons(){
   $('bulkDuplicateBtn').style.display = n ? '' : 'none';
   if (n){ $('bulkDeleteBtn').textContent = 'Excluir ('+n+')'; $('bulkDuplicateBtn').textContent = 'Duplicar ('+n+')'; }
 }
+window.bulkOpen = function(){
+  var ids = selectedIds.size ? Array.from(selectedIds) : profiles.map(function(p){return p.id;});
+  ids.forEach(function(id){ openProfile(id); });
+};
+window.bulkClose = function(){
+  var ids = selectedIds.size ? Array.from(selectedIds) : profiles.filter(function(p){return p.status==='running';}).map(function(p){return p.id;});
+  ids.forEach(function(id){ stopProfile(id); });
+};
 window.bulkDelete = function(){
   if (!confirm('Excluir '+selectedIds.size+' perfil(is)?')) return;
   profiles = profiles.filter(function(p){ return !selectedIds.has(p.id); });

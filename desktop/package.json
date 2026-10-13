@@ -18,6 +18,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "browser-preload.js",
+      "browser.html",
       "index.html",
       "icon.png"
     ],
