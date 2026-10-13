@@ -24,9 +24,20 @@
       "icon.png"
     ],
     "win": {
-      "target": "dir",
+      "target": "nsis",
       "icon": "icon.png",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icon.png",
+      "uninstallerIcon": "icon.png",
+      "installerHeaderIcon": "icon.png",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MultiLogin",
+      "runAfterFinish": true
     },
     "linux": {
       "target": "AppImage",
