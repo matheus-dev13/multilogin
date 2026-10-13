@@ -21,19 +21,20 @@
       "browser-preload.js",
       "browser.html",
       "index.html",
-      "icon.png"
+      "icon.png",
+      "icon.ico"
     ],
     "win": {
       "target": "nsis",
-      "icon": "icon.png",
+      "icon": "icon.ico",
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "icon.png",
-      "uninstallerIcon": "icon.png",
-      "installerHeaderIcon": "icon.png",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "MultiLogin",
