@@ -296,19 +296,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
     </div>
     <div id="page-settings" style="display:none">
       <div style="max-width:500px">
-        <div class="form-section">Supabase</div>
+        <div class="form-section">Conta</div>
         <div class="form-row">
-          <label>Project URL</label>
-          <input type="text" id="setSupaUrl" placeholder="https://xxxx.supabase.co" value="">
-          <div class="hint">Copie de Supabase &gt; Settings &gt; API</div>
+          <label>Email</label>
+          <div id="setUserEmail" style="font-size:14px;color:var(--muted);padding:9px 0">Carregando...</div>
         </div>
         <div class="form-row">
-          <label>Anon Key</label>
-          <input type="password" id="setSupaKey" placeholder="eyJ...">
-          <div class="hint">Chave publica (anon)</div>
+          <label>Plano</label>
+          <div id="setUserPlan" style="font-size:14px;color:var(--muted);padding:9px 0">—</div>
         </div>
         <div class="form-row">
-          <button class="btn btn-primary" onclick="saveSettings()">Salvar e conectar</button>
+          <label>Validade</label>
+          <div id="setUserExpires" style="font-size:14px;color:var(--muted);padding:9px 0">—</div>
+        </div>
+        <div class="form-row" style="margin-top:12px">
+          <button class="btn btn-danger" onclick="doLogout()">Sair da conta</button>
           <button class="btn" onclick="clearData()" style="margin-left:8px">Limpar dados locais</button>
         </div>
         <div class="form-section">Armazenamento</div>
@@ -1120,13 +1122,11 @@ window.handleImport = function(e){
   reader.readAsText(f);
 };
 
-window.saveSettings = function(){
-  try{
-    localStorage.setItem('ml_supa_url', $('setSupaUrl').value.trim());
-    localStorage.setItem('ml_supa_key', $('setSupaKey').value.trim());
-  }catch(e){}
-  showToast('Configuracoes salvas!','success');
-  $('storageStatus').textContent = $('setSupaUrl').value.trim() ? 'Conectado ao Supabase' : 'Usando armazenamento local';
+window.doLogout = async function(){
+  if (!confirm('Sair da conta? Voce precisara fazer login novamente.')) return;
+  if (window.electronAPI && window.electronAPI.logout) {
+    await window.electronAPI.logout();
+  }
 };
 window.clearData = function(){
   if (!confirm('Limpar todos os dados locais? Essa acao nao pode ser desfeita.')) return;
@@ -1240,11 +1240,21 @@ function renderAll(){
 }
 
 load();
-try{
-  $('setSupaUrl').value = localStorage.getItem('ml_supa_url') || '';
-  $('setSupaKey').value = localStorage.getItem('ml_supa_key') || '';
-  if ($('setSupaUrl').value) $('storageStatus').textContent = 'Conectado ao Supabase';
-}catch(e){}
+
+if (window.electronAPI && window.electronAPI.getCurrentUser) {
+  window.electronAPI.getCurrentUser().then(function(user){
+    if (user) {
+      $('setUserEmail').textContent = user.email || '—';
+      $('setUserPlan').textContent = (user.plan || 'mensal').charAt(0).toUpperCase() + (user.plan || 'mensal').slice(1);
+      if (user.expiresAt) {
+        var d = new Date(user.expiresAt);
+        $('setUserExpires').textContent = d.toLocaleDateString('pt-BR');
+      } else {
+        $('setUserExpires').textContent = '—';
+      }
+    }
+  });
+}
 
 var uaSel = $('pUA');
 USER_AGENTS.forEach(function(ua, i){

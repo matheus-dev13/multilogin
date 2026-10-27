@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isProfileRunning: (profileId) => ipcRenderer.invoke('is-profile-running', profileId),
   getRunningProfiles: () => ipcRenderer.invoke('get-running-profiles'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  onProfileClosed: (callback) => ipcRenderer.on('profile-closed', (event, id) => callback(id))
+  onProfileClosed: (callback) => ipcRenderer.on('profile-closed', (event, id) => callback(id)),
+  logout: () => ipcRenderer.invoke('auth-logout'),
+  getCurrentUser: () => ipcRenderer.invoke('get-current-user')
 });

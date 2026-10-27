@@ -19,8 +19,11 @@
       "main.js",
       "preload.js",
       "browser-preload.js",
+      "login-preload.js",
+      "firebase-config.js",
       "browser.html",
       "index.html",
+      "login.html",
       "icon.png",
       "icon.ico"
     ],

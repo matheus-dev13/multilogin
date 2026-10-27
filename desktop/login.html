@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ObyLogin - Entrar</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0b14;--bg2:#12132a;--surface:#1a1b3a;--border:#2a2b5a;--ink:#e8eaf6;--muted:#9499c3;--faint:#6b70a0;--primary:#7c3aed;--primary-h:#8b5cf6;--primary-bg:rgba(124,58,237,.15);--red:#ef4444;--green:#22c55e;--font:system-ui,-apple-system,'Segoe UI',sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased;overflow:hidden}
+.bg-glow{position:fixed;width:500px;height:500px;border-radius:50%;filter:blur(120px);opacity:.15;pointer-events:none}
+.bg-glow.g1{background:#7c3aed;top:-100px;left:-100px}
+.bg-glow.g2{background:#6366f1;bottom:-150px;right:-100px}
+.login-box{width:100%;max-width:420px;padding:20px;position:relative;z-index:1}
+.logo-area{text-align:center;margin-bottom:36px}
+.logo-area img{width:72px;height:72px;border-radius:16px;margin-bottom:14px;box-shadow:0 0 40px rgba(124,58,237,.3)}
+.logo-area h1{font-size:28px;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,#8b5cf6,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-area p{color:var(--muted);font-size:14px;margin-top:4px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--surface);border-radius:10px;padding:4px}
+.tab-btn{flex:1;padding:10px;border:none;background:none;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;transition:all .2s}
+.tab-btn.active{background:var(--primary);color:#fff;box-shadow:0 2px 12px rgba(124,58,237,.3)}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.form-group input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font:inherit;font-size:14px;color:var(--ink);transition:border-color .2s}
+.form-group input:focus{border-color:var(--primary);outline:none;box-shadow:0 0 0 3px var(--primary-bg)}
+.form-group input::placeholder{color:var(--faint)}
+.submit-btn{width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s,transform .1s;margin-top:6px}
+.submit-btn:hover{opacity:.9}
+.submit-btn:active{transform:scale(.98)}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+.error-msg{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+.error-msg.show{display:block}
+.success-msg{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+.success-msg.show{display:block}
+.info-text{text-align:center;font-size:13px;color:var(--faint);margin-top:18px}
+.info-text a{color:var(--primary-h);text-decoration:none;cursor:pointer}
+.info-text a:hover{text-decoration:underline}
+.sub-status{text-align:center;margin-top:16px;padding:14px;border-radius:10px;font-size:13px;display:none}
+.sub-status.expired{display:block;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+.sub-status.active{display:block;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green)}
+.sub-status.pending{display:block;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);color:#eab308}
+.loading{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.version{position:fixed;bottom:12px;right:16px;font-size:11px;color:var(--faint);opacity:.5}
+</style>
+</head>
+<body>
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+
+<div class="login-box">
+  <div class="logo-area">
+    <img src="icon.png" alt="ObyLogin">
+    <h1>ObyLogin</h1>
+    <p>Gerenciador de perfis de navegador</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchMode('login')">Entrar</button>
+      <button class="tab-btn" onclick="switchMode('register')">Criar conta</button>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+
+    <div id="loginForm">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="seu@email.com" autofocus>
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="loginPassword" placeholder="Sua senha">
+      </div>
+      <button class="submit-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <div id="registerForm" style="display:none">
+      <div class="form-group">
+        <label>Nome</label>
+        <input type="text" id="regName" placeholder="Seu nome">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="regEmail" placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="regPassword" placeholder="Minimo 6 caracteres">
+      </div>
+      <button class="submit-btn" id="regBtn" onclick="doRegister()">Criar conta</button>
+    </div>
+
+    <div class="sub-status" id="subStatus"></div>
+  </div>
+
+  <div class="info-text" id="infoText">
+    <span id="loginInfo">Nao tem conta? <a onclick="switchMode('register')">Criar conta</a></span>
+    <span id="regInfo" style="display:none">Ja tem conta? <a onclick="switchMode('login')">Entrar</a></span>
+  </div>
+</div>
+
+<div class="version">ObyLogin v1.0</div>
+
+<script>
+(function(){
+  var mode = 'login';
+
+  window.switchMode = function(m){
+    mode = m;
+    document.querySelectorAll('.tab-btn').forEach(function(b,i){
+      b.classList.toggle('active', (i===0 && m==='login') || (i===1 && m==='register'));
+    });
+    document.getElementById('loginForm').style.display = m==='login' ? '' : 'none';
+    document.getElementById('registerForm').style.display = m==='register' ? '' : 'none';
+    document.getElementById('loginInfo').style.display = m==='login' ? '' : 'none';
+    document.getElementById('regInfo').style.display = m==='register' ? '' : 'none';
+    hideError(); hideSuccess();
+  };
+
+  function showError(msg){
+    var el = document.getElementById('errorMsg');
+    el.textContent = msg; el.classList.add('show');
+  }
+  function hideError(){
+    document.getElementById('errorMsg').classList.remove('show');
+  }
+  function showSuccess(msg){
+    var el = document.getElementById('successMsg');
+    el.textContent = msg; el.classList.add('show');
+  }
+  function hideSuccess(){
+    document.getElementById('successMsg').classList.remove('show');
+  }
+
+  function setLoading(btnId, loading){
+    var btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    if (loading) btn.innerHTML = '<span class="loading"></span> Aguarde...';
+    else btn.textContent = btnId === 'loginBtn' ? 'Entrar' : 'Criar conta';
+  }
+
+  window.doLogin = async function(){
+    hideError(); hideSuccess();
+    var email = document.getElementById('loginEmail').value.trim();
+    var password = document.getElementById('loginPassword').value;
+    if (!email || !password){ showError('Preencha email e senha.'); return; }
+    setLoading('loginBtn', true);
+    try {
+      var result = await window.authAPI.login(email, password);
+      if (result.error){
+        showError(translateError(result.error));
+      } else if (result.expired){
+        showSubStatus('expired', 'Sua assinatura expirou em ' + formatDate(result.expiresAt) + '. Entre em contato para renovar.');
+      } else if (result.pending){
+        showSubStatus('pending', 'Sua conta esta aguardando ativacao. Entre em contato com o suporte.');
+      }
+    } catch(e){
+      showError('Erro de conexao. Verifique sua internet.');
+    }
+    setLoading('loginBtn', false);
+  };
+
+  window.doRegister = async function(){
+    hideError(); hideSuccess();
+    var name = document.getElementById('regName').value.trim();
+    var email = document.getElementById('regEmail').value.trim();
+    var password = document.getElementById('regPassword').value;
+    if (!name || !email || !password){ showError('Preencha todos os campos.'); return; }
+    if (password.length < 6){ showError('A senha precisa ter no minimo 6 caracteres.'); return; }
+    setLoading('regBtn', true);
+    try {
+      var result = await window.authAPI.register(name, email, password);
+      if (result.error){
+        showError(translateError(result.error));
+      } else {
+        showSuccess('Conta criada! Aguarde a ativacao pelo administrador.');
+        showSubStatus('pending', 'Sua conta foi criada. Aguardando ativacao pelo administrador.');
+        setTimeout(function(){ switchMode('login'); }, 2000);
+      }
+    } catch(e){
+      showError('Erro de conexao. Verifique sua internet.');
+    }
+    setLoading('regBtn', false);
+  };
+
+  function showSubStatus(type, msg){
+    var el = document.getElementById('subStatus');
+    el.textContent = msg;
+    el.className = 'sub-status ' + type;
+  }
+
+  function formatDate(iso){
+    if (!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function translateError(code){
+    var msgs = {
+      'auth/invalid-email': 'Email invalido.',
+      'auth/user-disabled': 'Conta desativada.',
+      'auth/user-not-found': 'Email nao encontrado.',
+      'auth/wrong-password': 'Senha incorreta.',
+      'auth/invalid-credential': 'Email ou senha incorretos.',
+      'auth/email-already-in-use': 'Este email ja esta cadastrado.',
+      'auth/weak-password': 'Senha muito fraca. Use no minimo 6 caracteres.',
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos.',
+      'auth/network-request-failed': 'Sem conexao com a internet.'
+    };
+    return msgs[code] || 'Erro: ' + code;
+  }
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){
+      if (mode === 'login') doLogin();
+      else doRegister();
+    }
+  });
+
+  window.authAPI && window.authAPI.onAutoLogin(function(result){
+    if (result && result.expired){
+      showSubStatus('expired', 'Sua assinatura expirou. Entre em contato para renovar.');
+    } else if (result && result.pending){
+      showSubStatus('pending', 'Conta aguardando ativacao.');
+    }
+  });
+})();
+</script>
+</body>
+</html>
