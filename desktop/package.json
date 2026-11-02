@@ -32,6 +32,11 @@
       "icon": "icon.ico",
       "signAndEditExecutable": false
     },
+    "publish": {
+      "provider": "github",
+      "owner": "matheus-dev13",
+      "repo": "multilogin"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -52,7 +57,9 @@
       "icon": "icon.png"
     }
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8"

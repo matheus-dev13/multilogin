@@ -1,6 +1,7 @@
-const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net, Menu } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 const FIREBASE = require('./firebase-config');
 
 var defaultUA = app.userAgentFallback || '';
@@ -681,6 +682,30 @@ ipcMain.handle('open-external', (event, url) => {
 
 app.whenReady().then(function() {
   createMainWindow();
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.checkForUpdates().catch(function() {});
+
+  autoUpdater.on('update-available', function(info) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-status', 'Baixando atualização v' + info.version + '...');
+    }
+  });
+
+  autoUpdater.on('update-downloaded', function(info) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Atualização disponível',
+      message: 'ObyLogin v' + info.version + ' foi baixado. Deseja reiniciar agora para atualizar?',
+      buttons: ['Reiniciar agora', 'Depois'],
+      defaultId: 0
+    }).then(function(result) {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  });
 });
 
 app.on('window-all-closed', () => {
