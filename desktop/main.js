@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const FIREBASE = require('./firebase-config');
@@ -396,6 +396,41 @@ function setupViewEvents(win, view, profileId, profile) {
   wc.setWindowOpenHandler(function(details) {
     createTab(win, profileId, profile, details.url);
     return { action: 'deny' };
+  });
+  wc.on('context-menu', function(e, params) {
+    var menuItems = [];
+    if (params.linkURL) {
+      menuItems.push({ label: 'Abrir link em nova aba', click: function() { createTab(win, profileId, profile, params.linkURL); } });
+      menuItems.push({ label: 'Copiar link', click: function() { require('electron').clipboard.writeText(params.linkURL); } });
+      menuItems.push({ type: 'separator' });
+    }
+    if (params.selectionText) {
+      menuItems.push({ label: 'Copiar', role: 'copy' });
+      menuItems.push({ label: 'Pesquisar "' + params.selectionText.slice(0, 30) + '"', click: function() { createTab(win, profileId, profile, 'https://www.google.com/search?q=' + encodeURIComponent(params.selectionText)); } });
+      menuItems.push({ type: 'separator' });
+    }
+    if (params.isEditable) {
+      menuItems.push({ label: 'Desfazer', role: 'undo' });
+      menuItems.push({ label: 'Refazer', role: 'redo' });
+      menuItems.push({ type: 'separator' });
+      menuItems.push({ label: 'Recortar', role: 'cut' });
+      menuItems.push({ label: 'Copiar', role: 'copy' });
+      menuItems.push({ label: 'Colar', role: 'paste' });
+      menuItems.push({ label: 'Selecionar tudo', role: 'selectAll' });
+      menuItems.push({ type: 'separator' });
+    }
+    if (params.mediaType === 'image') {
+      menuItems.push({ label: 'Copiar imagem', click: function() { wc.copyImageAt(params.x, params.y); } });
+      menuItems.push({ label: 'Abrir imagem em nova aba', click: function() { createTab(win, profileId, profile, params.srcURL); } });
+      menuItems.push({ type: 'separator' });
+    }
+    menuItems.push({ label: 'Voltar', enabled: wc.canGoBack(), click: function() { wc.goBack(); } });
+    menuItems.push({ label: 'Avancar', enabled: wc.canGoForward(), click: function() { wc.goForward(); } });
+    menuItems.push({ label: 'Recarregar', click: function() { wc.reload(); } });
+    menuItems.push({ type: 'separator' });
+    menuItems.push({ label: 'Inspecionar elemento', click: function() { wc.inspectElement(params.x, params.y); } });
+    var menu = Menu.buildFromTemplate(menuItems);
+    menu.popup({ window: win });
   });
   if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_user) {
     wc.on('login', function(event, details, authInfo, callback) {

@@ -6,41 +6,51 @@
 <title>ObyLogin Browser</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--tab-bg:#202124;--tab-active:#323639;--tab-hover:#2a2d30;--toolbar-bg:#323639;--border:#3c4043;--text:#e8eaed;--text-muted:#9aa0a6;--url-bg:#202124;--accent:#8ab4f8;--close-hover:#ff4444}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--tab-bg);color:var(--text);overflow:hidden;user-select:none;-webkit-app-region:drag}
+:root{
+  --bg:#1a1b2e;--bg2:#12132a;--surface:#222345;--surface2:#2a2c52;
+  --border:#353766;--border2:#454988;
+  --text:#e8eaf6;--text-muted:#9499c3;--text-faint:#6b70a0;
+  --accent:#8b5cf6;--accent-h:#a78bfa;--accent-bg:rgba(139,92,246,.15);
+  --url-bg:#12132a;--url-focus:#8b5cf6;
+  --close-hover:#ef4444;
+  --green:#22c55e
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg2);color:var(--text);overflow:hidden;user-select:none;-webkit-app-region:drag}
 button,input{-webkit-app-region:no-drag}
 
-.tab-bar{display:flex;align-items:flex-end;height:38px;padding:6px 8px 0 80px;background:var(--tab-bg);gap:0}
-.tab{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px 8px 0 0;background:transparent;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;max-width:240px;min-width:60px;flex:0 1 200px;transition:background .1s}
-.tab:hover{background:var(--tab-hover)}
-.tab.active{background:var(--tab-active);color:var(--text)}
-.tab-favicon{width:16px;height:16px;border-radius:2px;flex-shrink:0;background:#5f6368;display:grid;place-items:center}
-.tab-favicon img{width:16px;height:16px;border-radius:2px}
+.tab-bar{display:flex;align-items:flex-end;height:40px;padding:4px 8px 0 80px;background:var(--bg2);gap:2px}
+.tab{display:flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:10px 10px 0 0;background:transparent;border:none;color:var(--text-muted);font-size:12px;font-weight:500;cursor:pointer;max-width:240px;min-width:60px;flex:0 1 200px;transition:all .15s}
+.tab:hover{background:var(--surface);color:var(--text)}
+.tab.active{background:var(--bg);color:var(--text)}
+.tab-favicon{width:16px;height:16px;border-radius:3px;flex-shrink:0;display:grid;place-items:center;font-size:12px}
+.tab-favicon img{width:16px;height:16px;border-radius:3px}
 .tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
-.tab-close{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px;flex-shrink:0;padding:0;line-height:1}
+.tab-close{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-faint);cursor:pointer;font-size:13px;flex-shrink:0;padding:0;line-height:1;transition:all .15s}
 .tab-close:hover{background:var(--close-hover);color:#fff}
-.tab-new{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:20px;margin-left:4px;flex-shrink:0;align-self:center}
-.tab-new:hover{background:var(--tab-hover)}
+.tab-new{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:20px;margin-left:4px;flex-shrink:0;align-self:center;transition:all .15s}
+.tab-new:hover{background:var(--surface);color:var(--text)}
 
-.toolbar{display:flex;align-items:center;gap:4px;height:36px;padding:0 8px;background:var(--toolbar-bg)}
-.nav-btn{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer}
-.nav-btn:hover:not(:disabled){background:var(--tab-hover);color:var(--text)}
-.nav-btn:disabled{opacity:.3;cursor:default}
+.toolbar{display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;background:var(--bg);border-bottom:1px solid var(--border)}
+.nav-btn{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;border:none;background:none;color:var(--text-muted);cursor:pointer;transition:all .15s}
+.nav-btn:hover:not(:disabled){background:var(--surface);color:var(--text)}
+.nav-btn:disabled{opacity:.25;cursor:default}
 .nav-btn svg{width:18px;height:18px}
 
-.url-bar{flex:1;height:28px;display:flex;align-items:center;background:var(--url-bg);border-radius:14px;padding:0 12px;margin:0 4px}
-.url-bar:focus-within{outline:2px solid var(--accent);outline-offset:-2px}
-.url-icon{color:var(--text-muted);margin-right:6px;flex-shrink:0;display:flex;align-items:center}
+.url-bar{flex:1;height:34px;display:flex;align-items:center;background:var(--url-bg);border:1px solid var(--border);border-radius:10px;padding:0 14px;margin:0 4px;transition:all .2s}
+.url-bar:focus-within{border-color:var(--url-focus);box-shadow:0 0 0 3px var(--accent-bg)}
+.url-icon{color:var(--text-faint);margin-right:8px;flex-shrink:0;display:flex;align-items:center}
 .url-icon svg{width:14px;height:14px}
+.url-icon.secure{color:var(--green)}
 .url-input{flex:1;background:none;border:none;color:var(--text);font-size:13px;font-family:inherit;outline:none}
-.url-input::placeholder{color:var(--text-muted)}
-.url-input::selection{background:var(--accent);color:#000}
+.url-input::placeholder{color:var(--text-faint)}
+.url-input::selection{background:var(--accent);color:#fff}
 
-.profile-badge{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;color:var(--accent);margin-left:4px;flex-shrink:0}
+.profile-badge{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;color:var(--accent-h);background:var(--accent-bg);margin-left:4px;flex-shrink:0;letter-spacing:.02em}
+.profile-badge svg{width:14px;height:14px;flex-shrink:0}
 
 .loading-bar{height:2px;background:transparent;position:relative;overflow:hidden}
-.loading-bar.active{background:var(--toolbar-bg)}
-.loading-bar.active::after{content:'';position:absolute;left:-40%;width:40%;height:100%;background:var(--accent);animation:loading 1s ease-in-out infinite}
+.loading-bar.active{background:var(--bg)}
+.loading-bar.active::after{content:'';position:absolute;left:-40%;width:40%;height:100%;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:loading .8s ease-in-out infinite}
 @keyframes loading{0%{left:-40%}100%{left:100%}}
 </style>
 </head>
@@ -52,23 +62,26 @@ button,input{-webkit-app-region:no-drag}
 
 <div class="toolbar">
   <button class="nav-btn" id="backBtn" disabled title="Voltar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
   </button>
   <button class="nav-btn" id="forwardBtn" disabled title="Avancar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
   </button>
   <button class="nav-btn" id="reloadBtn" title="Recarregar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
   </button>
 
   <div class="url-bar">
-    <div class="url-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <div class="url-icon" id="urlIcon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
     </div>
     <input type="text" class="url-input" id="urlInput" placeholder="Pesquisar ou digitar URL" spellcheck="false" autocomplete="off">
   </div>
 
-  <div class="profile-badge" id="profileBadge"></div>
+  <div class="profile-badge" id="profileBadge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span id="profileName"></span>
+  </div>
 </div>
 
 <div class="loading-bar" id="loadingBar"></div>
@@ -76,13 +89,14 @@ button,input{-webkit-app-region:no-drag}
 <script>
 (function(){
   var urlInput = document.getElementById('urlInput');
+  var urlIcon = document.getElementById('urlIcon');
   var backBtn = document.getElementById('backBtn');
   var forwardBtn = document.getElementById('forwardBtn');
   var reloadBtn = document.getElementById('reloadBtn');
   var newTabBtn = document.getElementById('newTabBtn');
   var tabBar = document.getElementById('tabBar');
   var loadingBar = document.getElementById('loadingBar');
-  var profileBadge = document.getElementById('profileBadge');
+  var profileName = document.getElementById('profileName');
   var isLoading = false;
 
   function normalizeUrl(input) {
@@ -91,6 +105,16 @@ button,input{-webkit-app-region:no-drag}
     if (/^https?:\/\//i.test(input)) return input;
     if (/^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)+[a-zA-Z]{2,}/.test(input)) return 'https://' + input;
     return 'https://www.google.com/search?q=' + encodeURIComponent(input);
+  }
+
+  function updateUrlIcon(url) {
+    if (url && url.indexOf('https://') === 0) {
+      urlIcon.className = 'url-icon secure';
+      urlIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>';
+    } else {
+      urlIcon.className = 'url-icon';
+      urlIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
+    }
   }
 
   urlInput.addEventListener('keydown', function(e) {
@@ -117,16 +141,17 @@ button,input{-webkit-app-region:no-drag}
     if (document.activeElement !== urlInput) {
       urlInput.value = url || '';
     }
+    updateUrlIcon(url);
   });
 
   window.browserAPI.onLoadingChanged(function(loading) {
     isLoading = loading;
     loadingBar.className = loading ? 'loading-bar active' : 'loading-bar';
     if (loading) {
-      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
       reloadBtn.title = 'Parar';
     } else {
-      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>';
+      reloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>';
       reloadBtn.title = 'Recarregar';
     }
   });
@@ -146,9 +171,9 @@ button,input{-webkit-app-region:no-drag}
       var el = document.createElement('button');
       el.className = 'tab' + (i === activeIdx ? ' active' : '');
       var faviconHtml = tab.favicon
-        ? '<div class="tab-favicon"><img src="'+tab.favicon+'" onerror="this.parentElement.innerHTML=\'&#x1F310;\'"></div>'
-        : '<div class="tab-favicon">&#x1F310;</div>';
-      el.innerHTML = faviconHtml + '<span class="tab-title">' + escHtml(tab.title || 'Nova aba') + '</span>' + (tabs.length > 1 ? '<button class="tab-close" data-idx="'+i+'">&#x2715;</button>' : '');
+        ? '<div class="tab-favicon"><img src="'+tab.favicon+'" onerror="this.parentElement.textContent=\'🌐\'"></div>'
+        : '<div class="tab-favicon">🌐</div>';
+      el.innerHTML = faviconHtml + '<span class="tab-title">' + escHtml(tab.title || 'Nova aba') + '</span>' + (tabs.length > 1 ? '<button class="tab-close" data-idx="'+i+'">✕</button>' : '');
       el.addEventListener('click', function(e) {
         if (e.target.classList.contains('tab-close')) {
           window.browserAPI.closeTab(parseInt(e.target.dataset.idx));
@@ -161,7 +186,7 @@ button,input{-webkit-app-region:no-drag}
   });
 
   window.browserAPI.getProfileName().then(function(name) {
-    if (name) profileBadge.textContent = name;
+    if (name) profileName.textContent = name;
   });
 
   function escHtml(s) {
