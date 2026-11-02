@@ -299,18 +299,53 @@ function sendTabsState(win, profileId) {
 var STEALTH_JS = `
   Object.defineProperty(navigator, 'webdriver', { get: () => false });
   if (navigator.userAgentData) {
-    Object.defineProperty(navigator.userAgentData, 'brands', {
-      get: () => [
-        { brand: 'Google Chrome', version: '120' },
-        { brand: 'Chromium', version: '120' },
-        { brand: 'Not_A Brand', version: '8' }
-      ]
+    var origUA = navigator.userAgentData;
+    var fakeBrands = [
+      { brand: 'Not_A Brand', version: '8' },
+      { brand: 'Chromium', version: '120' },
+      { brand: 'Google Chrome', version: '120' }
+    ];
+    Object.defineProperty(navigator, 'userAgentData', {
+      get: () => ({
+        brands: fakeBrands,
+        mobile: false,
+        platform: origUA.platform || 'Windows',
+        getHighEntropyValues: function(hints) {
+          return Promise.resolve({
+            brands: fakeBrands,
+            mobile: false,
+            platform: origUA.platform || 'Windows',
+            platformVersion: '15.0.0',
+            architecture: 'x86',
+            model: '',
+            uaFullVersion: '120.0.6099.291',
+            fullVersionList: fakeBrands.map(function(b) { return { brand: b.brand, version: b.version + '.0.6099.291' }; })
+          });
+        }
+      })
     });
   }
-  delete window.process;
-  delete window.global;
-  delete window.Buffer;
-  delete window.require;
+  Object.defineProperty(navigator, 'plugins', { get: () => [
+    { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+    { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+    { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
+  ]});
+  Object.defineProperty(navigator, 'languages', { get: () => ['pt-BR', 'pt', 'en-US', 'en'] });
+  if (window.chrome === undefined) {
+    window.chrome = { runtime: {}, app: { isInstalled: false, InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' }, RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' } }, csi: function(){}, loadTimes: function(){} };
+  }
+  var origQuery = window.navigator.permissions.query;
+  window.navigator.permissions.query = function(params) {
+    if (params.name === 'notifications') return Promise.resolve({ state: Notification.permission });
+    return origQuery.call(window.navigator.permissions, params);
+  };
+  Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+  Object.defineProperty(navigator, 'connection', { get: () => ({ effectiveType: '4g', rtt: 50, downlink: 10, saveData: false }) });
+  try { delete window.process; } catch(e) {}
+  try { delete window.global; } catch(e) {}
+  try { delete window.Buffer; } catch(e) {}
+  try { delete window.require; } catch(e) {}
+  try { delete window.__electron_preload; } catch(e) {}
 `;
 
 function setupViewEvents(win, view, profileId, profile) {
@@ -319,9 +354,12 @@ function setupViewEvents(win, view, profileId, profile) {
     wc.executeJavaScript(STEALTH_JS).catch(function(){});
   });
   wc.on('did-start-navigation', function(e, url, isInPlace, isMainFrame) {
-    if (isMainFrame && !win.isDestroyed()) {
-      win.webContents.send('loading-changed', true);
-      win.webContents.send('url-changed', url);
+    if (isMainFrame) {
+      wc.executeJavaScript(STEALTH_JS).catch(function(){});
+      if (!win.isDestroyed()) {
+        win.webContents.send('loading-changed', true);
+        win.webContents.send('url-changed', url);
+      }
     }
   });
   wc.on('did-navigate', function() {
@@ -355,19 +393,8 @@ function setupViewEvents(win, view, profileId, profile) {
       sendTabsState(win, profileId);
     }
   });
-  wc.on('will-navigate', function(e, url) {
-    if (url.indexOf('accounts.google.com') >= 0) {
-      e.preventDefault();
-      shell.openExternal(url);
-    }
-  });
   wc.setWindowOpenHandler(function(details) {
-    var u = details.url || '';
-    if (u.indexOf('accounts.google.com') >= 0) {
-      shell.openExternal(u);
-      return { action: 'deny' };
-    }
-    createTab(win, profileId, profile, u);
+    createTab(win, profileId, profile, details.url);
     return { action: 'deny' };
   });
   if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_user) {
