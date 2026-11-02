@@ -296,8 +296,28 @@ function sendTabsState(win, profileId) {
   win.webContents.send('tabs-updated', tabs, state.activeIndex);
 }
 
+var STEALTH_JS = `
+  Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  if (navigator.userAgentData) {
+    Object.defineProperty(navigator.userAgentData, 'brands', {
+      get: () => [
+        { brand: 'Google Chrome', version: '120' },
+        { brand: 'Chromium', version: '120' },
+        { brand: 'Not_A Brand', version: '8' }
+      ]
+    });
+  }
+  delete window.process;
+  delete window.global;
+  delete window.Buffer;
+  delete window.require;
+`;
+
 function setupViewEvents(win, view, profileId, profile) {
   var wc = view.webContents;
+  wc.on('dom-ready', function() {
+    wc.executeJavaScript(STEALTH_JS).catch(function(){});
+  });
   wc.on('did-start-navigation', function(e, url, isInPlace, isMainFrame) {
     if (isMainFrame && !win.isDestroyed()) {
       win.webContents.send('loading-changed', true);
@@ -335,9 +355,15 @@ function setupViewEvents(win, view, profileId, profile) {
       sendTabsState(win, profileId);
     }
   });
+  wc.on('will-navigate', function(e, url) {
+    if (url.indexOf('accounts.google.com') >= 0) {
+      e.preventDefault();
+      shell.openExternal(url);
+    }
+  });
   wc.setWindowOpenHandler(function(details) {
     var u = details.url || '';
-    if (u.indexOf('accounts.google.com') >= 0 && u.indexOf('signin/rejected') >= 0) {
+    if (u.indexOf('accounts.google.com') >= 0) {
       shell.openExternal(u);
       return { action: 'deny' };
     }
