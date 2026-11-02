@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const FIREBASE = require('./firebase-config');
 
+var defaultUA = app.userAgentFallback || '';
+defaultUA = defaultUA.replace(/\s*Electron\/[\d.]+\s*/g, ' ').replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+app.userAgentFallback = defaultUA;
+
 const profileWindows = new Map();
 const profileTabs = new Map();
 const TOOLBAR_HEIGHT = 76;
@@ -495,6 +499,18 @@ ipcMain.handle('launch-profile', async (event, profile) => {
           .replace(/\s*Electron\/[\d.]+\s*/g, ' ')
           .replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ')
           .replace(/\s+/g, ' ').trim();
+      }
+      var secCHUA = headers['Sec-CH-UA'] || headers['sec-ch-ua'];
+      if (secCHUA && secCHUA.indexOf('Electron') >= 0) {
+        var cleaned = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"';
+        headers['Sec-CH-UA'] = cleaned;
+        headers['sec-ch-ua'] = cleaned;
+      }
+      var secFull = headers['Sec-CH-UA-Full-Version-List'] || headers['sec-ch-ua-full-version-list'];
+      if (secFull && secFull.indexOf('Electron') >= 0) {
+        var cleanedFull = '"Not_A Brand";v="8.0.0.0", "Chromium";v="120.0.6099.291", "Google Chrome";v="120.0.6099.291"';
+        headers['Sec-CH-UA-Full-Version-List'] = cleanedFull;
+        headers['sec-ch-ua-full-version-list'] = cleanedFull;
       }
       callback({ requestHeaders: headers });
     });
