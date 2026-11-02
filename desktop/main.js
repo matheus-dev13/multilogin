@@ -628,7 +628,9 @@ ipcMain.handle('open-external', (event, url) => {
   shell.openExternal(url);
 });
 
-app.whenReady().then(tryAutoLogin);
+app.whenReady().then(function() {
+  createMainWindow();
+});
 
 app.on('window-all-closed', () => {
   app.quit();
@@ -636,7 +638,6 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    if (currentUser) createMainWindow();
-    else createLoginWindow();
+    createMainWindow();
   }
 });
