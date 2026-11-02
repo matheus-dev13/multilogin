@@ -336,7 +336,12 @@ function setupViewEvents(win, view, profileId, profile) {
     }
   });
   wc.setWindowOpenHandler(function(details) {
-    createTab(win, profileId, profile, details.url);
+    var u = details.url || '';
+    if (u.indexOf('accounts.google.com') >= 0 && u.indexOf('signin/rejected') >= 0) {
+      shell.openExternal(u);
+      return { action: 'deny' };
+    }
+    createTab(win, profileId, profile, u);
     return { action: 'deny' };
   });
   if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_user) {
@@ -392,7 +397,19 @@ ipcMain.handle('launch-profile', async (event, profile) => {
         } catch (e) {}
       }
     }
-    ses.setUserAgent(profile.user_agent || app.userAgentFallback || '');
+    var ua = profile.user_agent || app.userAgentFallback || '';
+    ua = ua.replace(/\s*Electron\/[\d.]+\s*/g, ' ').replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+    ses.setUserAgent(ua);
+    ses.webRequest.onBeforeSendHeaders(function(details, callback) {
+      var headers = Object.assign({}, details.requestHeaders);
+      if (headers['User-Agent']) {
+        headers['User-Agent'] = headers['User-Agent']
+          .replace(/\s*Electron\/[\d.]+\s*/g, ' ')
+          .replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ')
+          .replace(/\s+/g, ' ').trim();
+      }
+      callback({ requestHeaders: headers });
+    });
     const win = new BrowserWindow({
       width: profile.screen_w || 1920,
       height: profile.screen_h || 1080,
