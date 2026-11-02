@@ -306,9 +306,9 @@ var STEALTH_JS = `
   if (navigator.userAgentData) {
     var origUA = navigator.userAgentData;
     var fakeBrands = [
-      { brand: 'Not_A Brand', version: '8' },
-      { brand: 'Chromium', version: '120' },
-      { brand: 'Google Chrome', version: '120' }
+      { brand: 'Chromium', version: '130' },
+      { brand: 'Google Chrome', version: '130' },
+      { brand: 'Not?A_Brand', version: '99' }
     ];
     Object.defineProperty(navigator, 'userAgentData', {
       get: () => ({
@@ -323,8 +323,8 @@ var STEALTH_JS = `
             platformVersion: '15.0.0',
             architecture: 'x86',
             model: '',
-            uaFullVersion: '120.0.6099.291',
-            fullVersionList: fakeBrands.map(function(b) { return { brand: b.brand, version: b.version + '.0.6099.291' }; })
+            uaFullVersion: '130.0.6723.118',
+            fullVersionList: fakeBrands.map(function(b) { return { brand: b.brand, version: b.version + '.0.6723.118' }; })
           });
         }
       })
@@ -473,10 +473,9 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     profileTabs.delete(profile.id);
   }
   try {
-    const partition = 'persist:profile-' + profile.id;
-    const ses = session.fromPartition(partition);
     const profileDir = path.join(getProfilesDir(), profile.id);
     if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
+    const ses = session.fromPath(profileDir);
     if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_host) {
       const proxyUrl = profile.proxy_type + '://' + profile.proxy_host + ':' + (profile.proxy_port || '');
       await ses.setProxy({ proxyRules: proxyUrl });
@@ -503,13 +502,13 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       }
       var secCHUA = headers['Sec-CH-UA'] || headers['sec-ch-ua'];
       if (secCHUA && secCHUA.indexOf('Electron') >= 0) {
-        var cleaned = '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"';
+        var cleaned = '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"';
         headers['Sec-CH-UA'] = cleaned;
         headers['sec-ch-ua'] = cleaned;
       }
       var secFull = headers['Sec-CH-UA-Full-Version-List'] || headers['sec-ch-ua-full-version-list'];
       if (secFull && secFull.indexOf('Electron') >= 0) {
-        var cleanedFull = '"Not_A Brand";v="8.0.0.0", "Chromium";v="120.0.6099.291", "Google Chrome";v="120.0.6099.291"';
+        var cleanedFull = '"Chromium";v="130.0.6723.118", "Google Chrome";v="130.0.6723.118", "Not?A_Brand";v="99.0.0.0"';
         headers['Sec-CH-UA-Full-Version-List'] = cleanedFull;
         headers['sec-ch-ua-full-version-list'] = cleanedFull;
       }
