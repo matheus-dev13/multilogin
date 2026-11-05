@@ -1,6 +1,7 @@
 const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile, spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const FIREBASE = require('./firebase-config');
 
@@ -10,7 +11,42 @@ app.userAgentFallback = defaultUA;
 
 const profileWindows = new Map();
 const profileTabs = new Map();
+const runningChromeProfiles = new Map();
 const TOOLBAR_HEIGHT = 76;
+
+function findChromePath() {
+  var paths = [];
+  if (process.platform === 'win32') {
+    var pf = process.env.PROGRAMFILES || 'C:\\Program Files';
+    var pf86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    var local = process.env.LOCALAPPDATA || '';
+    paths = [
+      path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(pf86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join(pf, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(pf86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
+      path.join(local, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
+    ];
+  } else if (process.platform === 'darwin') {
+    paths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
+    ];
+  } else {
+    paths = [
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/usr/bin/brave-browser'
+    ];
+  }
+  for (var i = 0; i < paths.length; i++) {
+    try { if (fs.existsSync(paths[i])) return paths[i]; } catch(e) {}
+  }
+  return null;
+}
 
 let mainWindow = null;
 let loginWindow = null;
@@ -466,234 +502,80 @@ function createTab(win, profileId, profile, url) {
 }
 
 ipcMain.handle('launch-profile', async (event, profile) => {
-  if (profileWindows.has(profile.id)) {
-    const existing = profileWindows.get(profile.id);
-    if (!existing.isDestroyed()) { existing.focus(); return { success: true, message: 'Janela existente focada' }; }
-    profileWindows.delete(profile.id);
-    profileTabs.delete(profile.id);
+  if (runningChromeProfiles.has(profile.id)) {
+    return { success: true, message: 'Perfil já está rodando' };
   }
   try {
-    const profileDir = path.join(getProfilesDir(), profile.id);
+    var chromePath = findChromePath();
+    if (!chromePath) {
+      return { success: false, message: 'Google Chrome não encontrado. Instale o Chrome para usar o ObyLogin.' };
+    }
+    var profileDir = path.join(getProfilesDir(), profile.id);
     if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
-    const ses = session.fromPath(profileDir);
+    var args = [
+      '--user-data-dir=' + profileDir,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-background-networking',
+      '--window-size=' + (profile.screen_w || 1280) + ',' + (profile.screen_h || 800)
+    ];
+    if (profile.user_agent) {
+      args.push('--user-agent=' + profile.user_agent);
+    }
     if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_host) {
-      const proxyUrl = profile.proxy_type + '://' + profile.proxy_host + ':' + (profile.proxy_port || '');
-      await ses.setProxy({ proxyRules: proxyUrl });
-    }
-    if (profile.cookies && profile.cookies.length) {
-      for (const cookie of profile.cookies) {
-        try {
-          const c = {};
-          if (cookie.domain) {
-            c.url = 'https://' + cookie.domain.replace(/^\./, '');
-            c.domain = cookie.domain;
-          }
-          if (cookie.url) c.url = cookie.url;
-          c.name = cookie.name;
-          c.value = cookie.value;
-          if (cookie.path) c.path = cookie.path;
-          if (cookie.httpOnly !== undefined) c.httpOnly = cookie.httpOnly;
-          if (cookie.secure !== undefined) c.secure = cookie.secure;
-          if (cookie.expirationDate) c.expirationDate = cookie.expirationDate;
-          var ss = (cookie.sameSite || '').toLowerCase();
-          if (ss === 'none' || ss === 'no_restriction') {
-            c.sameSite = 'no_restriction';
-            c.secure = true;
-          } else if (ss === 'strict') {
-            c.sameSite = 'strict';
-          } else if (ss === 'lax') {
-            c.sameSite = 'lax';
-          } else {
-            c.sameSite = 'unspecified';
-          }
-          await ses.cookies.set(c);
-        } catch (e) {}
+      var proxyServer = profile.proxy_host + ':' + (profile.proxy_port || '');
+      if (profile.proxy_type === 'socks5') {
+        args.push('--proxy-server=socks5://' + proxyServer);
+      } else {
+        args.push('--proxy-server=' + proxyServer);
       }
     }
-    var ua = profile.user_agent || app.userAgentFallback || '';
-    ua = ua.replace(/\s*Electron\/[\d.]+\s*/g, ' ').replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ').replace(/\s+/g, ' ').trim();
-    ses.setUserAgent(ua);
-    ses.webRequest.onBeforeSendHeaders(function(details, callback) {
-      var headers = Object.assign({}, details.requestHeaders);
-      if (headers['User-Agent']) {
-        headers['User-Agent'] = headers['User-Agent']
-          .replace(/\s*Electron\/[\d.]+\s*/g, ' ')
-          .replace(/\s*obylogin-desktop\/[\d.]+\s*/gi, ' ')
-          .replace(/\s+/g, ' ').trim();
-      }
-      var secCHUA = headers['Sec-CH-UA'] || headers['sec-ch-ua'];
-      if (secCHUA && secCHUA.indexOf('Electron') >= 0) {
-        var cleaned = '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"';
-        headers['Sec-CH-UA'] = cleaned;
-        headers['sec-ch-ua'] = cleaned;
-      }
-      var secFull = headers['Sec-CH-UA-Full-Version-List'] || headers['sec-ch-ua-full-version-list'];
-      if (secFull && secFull.indexOf('Electron') >= 0) {
-        var cleanedFull = '"Chromium";v="130.0.6723.118", "Google Chrome";v="130.0.6723.118", "Not?A_Brand";v="99.0.0.0"';
-        headers['Sec-CH-UA-Full-Version-List'] = cleanedFull;
-        headers['sec-ch-ua-full-version-list'] = cleanedFull;
-      }
-      callback({ requestHeaders: headers });
-    });
-    const win = new BrowserWindow({
-      width: profile.screen_w || 1920,
-      height: profile.screen_h || 1080,
-      title: 'ObyLogin - ' + profile.name,
-      icon: path.join(__dirname, 'icon.png'),
-      backgroundColor: '#202124',
-      webPreferences: { preload: path.join(__dirname, 'browser-preload.js'), contextIsolation: true, nodeIntegration: false }
-    });
-    win.setMenuBarVisibility(false);
-    win.loadFile('browser.html');
-    profileTabs.set(profile.id, { session: ses, views: [], activeIndex: -1, profile: profile });
-    profileWindows.set(profile.id, win);
-    win.webContents.on('did-finish-load', function() {
-      createTab(win, profile.id, profile, profile.start_url || 'https://www.google.com');
-    });
-    win.on('resize', function() {
-      var state = profileTabs.get(profile.id);
-      if (!state || state.activeIndex < 0) return;
-      var view = state.views[state.activeIndex];
-      if (view && !view.webContents.isDestroyed()) {
-        var bounds = win.getBounds();
-        view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: bounds.width, height: bounds.height - TOOLBAR_HEIGHT });
-      }
-    });
-    win.on('closed', () => {
-      var state = profileTabs.get(profile.id);
-      if (state) state.views.forEach(function(v) { if (!v.webContents.isDestroyed()) v.webContents.close(); });
-      profileTabs.delete(profile.id);
-      profileWindows.delete(profile.id);
-      BrowserWindow.getAllWindows().forEach(w => {
+    if (profile.language) {
+      args.push('--lang=' + profile.language);
+    }
+    args.push(profile.start_url || 'https://www.google.com');
+    var proc = spawn(chromePath, args, { detached: true, stdio: 'ignore' });
+    proc.unref();
+    runningChromeProfiles.set(profile.id, proc);
+    proc.on('exit', function() {
+      runningChromeProfiles.delete(profile.id);
+      BrowserWindow.getAllWindows().forEach(function(w) {
         if (!w.isDestroyed()) w.webContents.send('profile-closed', profile.id);
       });
     });
-    return { success: true, message: 'Perfil "' + profile.name + '" aberto' };
+    return { success: true, message: 'Perfil "' + profile.name + '" aberto no Chrome' };
   } catch (err) {
     return { success: false, message: err.message };
   }
 });
 
-function getProfileIdFromWindow(senderWin) {
-  for (var [id, win] of profileWindows) { if (win === senderWin) return id; }
-  return null;
-}
-
-ipcMain.handle('browser-go-back', (event) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state && state.activeIndex >= 0) {
-    var view = state.views[state.activeIndex];
-    if (view && view.webContents.canGoBack()) view.webContents.goBack();
-  }
-});
-
-ipcMain.handle('browser-go-forward', (event) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state && state.activeIndex >= 0) {
-    var view = state.views[state.activeIndex];
-    if (view && view.webContents.canGoForward()) view.webContents.goForward();
-  }
-});
-
-ipcMain.handle('browser-reload', (event) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state && state.activeIndex >= 0) state.views[state.activeIndex].webContents.reload();
-});
-
-ipcMain.handle('browser-stop', (event) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state && state.activeIndex >= 0) state.views[state.activeIndex].webContents.stop();
-});
-
-ipcMain.handle('browser-navigate', (event, url) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state && state.activeIndex >= 0) state.views[state.activeIndex].webContents.loadURL(url);
-});
-
-ipcMain.handle('browser-new-tab', (event, url) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (state) createTab(win, pid, state.profile, url || 'https://www.google.com');
-});
-
-ipcMain.handle('browser-switch-tab', (event, idx) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (!state || idx < 0 || idx >= state.views.length) return;
-  state.activeIndex = idx;
-  var view = state.views[idx];
-  win.setBrowserView(view);
-  var bounds = win.getBounds();
-  view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: bounds.width, height: bounds.height - TOOLBAR_HEIGHT });
-  view.setAutoResize({ width: true, height: true });
-  sendNavState(win, view);
-  sendTabsState(win, pid);
-});
-
-ipcMain.handle('browser-close-tab', (event, idx) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  if (!state) return;
-  if (idx === -1) idx = state.activeIndex;
-  if (idx < 0 || idx >= state.views.length) return;
-  if (state.views.length <= 1) { win.close(); return; }
-  var removed = state.views.splice(idx, 1)[0];
-  if (!removed.webContents.isDestroyed()) removed.webContents.close();
-  if (state.activeIndex >= state.views.length) state.activeIndex = state.views.length - 1;
-  else if (idx < state.activeIndex) state.activeIndex--;
-  else if (idx === state.activeIndex) state.activeIndex = Math.min(idx, state.views.length - 1);
-  var view = state.views[state.activeIndex];
-  win.setBrowserView(view);
-  var bounds = win.getBounds();
-  view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: bounds.width, height: bounds.height - TOOLBAR_HEIGHT });
-  view.setAutoResize({ width: true, height: true });
-  sendNavState(win, view);
-  sendTabsState(win, pid);
-});
-
-ipcMain.handle('browser-get-profile-name', (event) => {
-  var win = BrowserWindow.fromWebContents(event.sender);
-  var pid = getProfileIdFromWindow(win);
-  var state = profileTabs.get(pid);
-  return state ? state.profile.name : '';
-});
 
 ipcMain.handle('close-profile', async (event, profileId) => {
-  const win = profileWindows.get(profileId);
-  if (win && !win.isDestroyed()) {
-    win.close();
-    profileWindows.delete(profileId);
-    profileTabs.delete(profileId);
+  var proc = runningChromeProfiles.get(profileId);
+  if (proc) {
+    try {
+      if (process.platform === 'win32') {
+        spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      } else {
+        process.kill(-proc.pid, 'SIGTERM');
+      }
+    } catch(e) {
+      try { proc.kill('SIGTERM'); } catch(e2) {}
+    }
+    runningChromeProfiles.delete(profileId);
     return { success: true };
   }
-  return { success: false, message: 'Janela nao encontrada' };
+  return { success: false, message: 'Perfil nao encontrado' };
 });
 
 ipcMain.handle('is-profile-running', (event, profileId) => {
-  const win = profileWindows.get(profileId);
-  return win && !win.isDestroyed();
+  return runningChromeProfiles.has(profileId);
 });
 
 ipcMain.handle('get-running-profiles', () => {
-  const running = [];
-  for (const [id, win] of profileWindows) {
-    if (!win.isDestroyed()) running.push(id);
-    else profileWindows.delete(id);
-  }
-  return running;
+  return Array.from(runningChromeProfiles.keys());
 });
 
 ipcMain.handle('open-external', (event, url) => {
