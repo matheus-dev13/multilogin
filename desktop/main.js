@@ -450,7 +450,7 @@ function createTab(win, profileId, profile, url) {
   if (!state) return null;
   var ses = state.session;
   var view = new BrowserView({
-    webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false }
   });
   state.views.push(view);
   state.activeIndex = state.views.length - 1;
@@ -483,8 +483,29 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     if (profile.cookies && profile.cookies.length) {
       for (const cookie of profile.cookies) {
         try {
-          const c = Object.assign({}, cookie);
-          if (!c.url && c.domain) c.url = 'https://' + c.domain.replace(/^\./, '');
+          const c = {};
+          if (cookie.domain) {
+            c.url = 'https://' + cookie.domain.replace(/^\./, '');
+            c.domain = cookie.domain;
+          }
+          if (cookie.url) c.url = cookie.url;
+          c.name = cookie.name;
+          c.value = cookie.value;
+          if (cookie.path) c.path = cookie.path;
+          if (cookie.httpOnly !== undefined) c.httpOnly = cookie.httpOnly;
+          if (cookie.secure !== undefined) c.secure = cookie.secure;
+          if (cookie.expirationDate) c.expirationDate = cookie.expirationDate;
+          var ss = (cookie.sameSite || '').toLowerCase();
+          if (ss === 'none' || ss === 'no_restriction') {
+            c.sameSite = 'no_restriction';
+            c.secure = true;
+          } else if (ss === 'strict') {
+            c.sameSite = 'strict';
+          } else if (ss === 'lax') {
+            c.sameSite = 'lax';
+          } else {
+            c.sameSite = 'unspecified';
+          }
           await ses.cookies.set(c);
         } catch (e) {}
       }
