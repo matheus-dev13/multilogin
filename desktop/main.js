@@ -578,6 +578,43 @@ ipcMain.handle('get-running-profiles', () => {
   return Array.from(runningChromeProfiles.keys());
 });
 
+ipcMain.handle('clear-profile-data', async (event, profileId, what) => {
+  if (runningChromeProfiles.has(profileId)) {
+    return { success: false, message: 'Feche o perfil antes de limpar os dados.' };
+  }
+  var profileDir = path.join(getProfilesDir(), profileId);
+  if (!fs.existsSync(profileDir)) return { success: true, message: 'Nada para limpar.' };
+  var defaultDir = path.join(profileDir, 'Default');
+  try {
+    if (what === 'all') {
+      fs.rmSync(profileDir, { recursive: true, force: true });
+      fs.mkdirSync(profileDir, { recursive: true });
+      return { success: true, message: 'Todos os dados do perfil foram limpos.' };
+    }
+    if (!fs.existsSync(defaultDir)) return { success: true, message: 'Nada para limpar.' };
+    var targets = [];
+    if (what === 'cookies') {
+      targets = ['Cookies', 'Cookies-journal'];
+    } else if (what === 'cache') {
+      targets = ['Cache', 'Code Cache', 'GPUCache', 'Service Worker', 'CacheStorage'];
+    } else if (what === 'history') {
+      targets = ['History', 'History-journal', 'Visited Links', 'Top Sites', 'Top Sites-journal'];
+    } else if (what === 'localstorage') {
+      targets = ['Local Storage', 'Session Storage', 'IndexedDB', 'databases'];
+    }
+    for (var i = 0; i < targets.length; i++) {
+      var target = path.join(defaultDir, targets[i]);
+      if (fs.existsSync(target)) {
+        fs.rmSync(target, { recursive: true, force: true });
+      }
+    }
+    var labels = { cookies: 'Cookies', cache: 'Cache', history: 'Histórico', localstorage: 'Local Storage' };
+    return { success: true, message: (labels[what] || what) + ' limpo com sucesso.' };
+  } catch(e) {
+    return { success: false, message: 'Erro ao limpar: ' + e.message };
+  }
+});
+
 ipcMain.handle('open-external', (event, url) => {
   shell.openExternal(url);
 });
