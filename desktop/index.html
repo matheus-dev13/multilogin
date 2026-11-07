@@ -647,15 +647,13 @@ function fmt(d){ if (!d) return '—'; var dt = new Date(d); return dt.toLocaleD
 function ago(d){ if (!d) return 'nunca'; var s = (Date.now()-new Date(d).getTime())/1000; if (s<60) return 'agora'; if (s<3600) return Math.floor(s/60)+'m'; if (s<86400) return Math.floor(s/3600)+'h'; return Math.floor(s/86400)+'d'; }
 
 function save(){
-  try{ localStorage.setItem('ml_profiles', JSON.stringify(profiles)); localStorage.setItem('ml_groups', JSON.stringify(groups)); }catch(e){}
+  window.electronAPI.saveProfilesData({ profiles: profiles, groups: groups });
 }
 function load(){
-  try{
-    var p = localStorage.getItem('ml_profiles');
-    var g = localStorage.getItem('ml_groups');
-    if (p) profiles = JSON.parse(p);
-    if (g) groups = JSON.parse(g);
-  }catch(e){}
+  return window.electronAPI.loadProfilesData().then(function(data){
+    if (data.profiles && data.profiles.length) profiles = data.profiles;
+    if (data.groups && data.groups.length) groups = data.groups;
+  }).catch(function(){});
 }
 
 function showToast(msg, type){
@@ -1274,7 +1272,7 @@ function renderAll(){
   if (page) showPage(page.dataset.page);
 }
 
-load();
+load().then(function(){ renderAll(); });
 
 if (window.electronAPI && window.electronAPI.getCurrentUser) {
   window.electronAPI.getCurrentUser().then(function(user){

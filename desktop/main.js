@@ -56,6 +56,59 @@ function getProfilesDir() {
   return path.join(app.getPath('userData'), 'browser_profiles');
 }
 
+function getDataFilePath() {
+  return path.join(app.getPath('userData'), 'profiles_data.json');
+}
+
+function loadProfilesData() {
+  try {
+    var filePath = getDataFilePath();
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+  } catch(e) {}
+  return { profiles: [], groups: [] };
+}
+
+function saveProfilesData(data) {
+  try {
+    fs.writeFileSync(getDataFilePath(), JSON.stringify(data, null, 2));
+  } catch(e) {}
+}
+
+function recoverProfilesFromDisk(existing) {
+  var profilesDir = getProfilesDir();
+  if (!fs.existsSync(profilesDir)) return existing;
+  var existingIds = {};
+  existing.forEach(function(p) { existingIds[p.id] = true; });
+  var dirs = fs.readdirSync(profilesDir);
+  var recovered = [];
+  dirs.forEach(function(dirName) {
+    if (existingIds[dirName]) return;
+    var dirPath = path.join(profilesDir, dirName);
+    try {
+      if (!fs.statSync(dirPath).isDirectory()) return;
+      if (dirName.startsWith('_') || dirName.startsWith('.')) return;
+      recovered.push({
+        id: dirName,
+        name: 'Perfil Recuperado ' + (recovered.length + 1),
+        status: 'ready',
+        group: '',
+        notes: '',
+        start_url: 'https://www.google.com',
+        proxy_type: 'none', proxy_host: '', proxy_port: '', proxy_user: '', proxy_pass: '',
+        user_agent: '',
+        screen_w: 1920, screen_h: 1080,
+        webrtc: 'real', timezone: 'auto', language: '', platform: 'Windows',
+        cookies: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    } catch(e) {}
+  });
+  return existing.concat(recovered);
+}
+
 function getSavedAuthPath() {
   return path.join(app.getPath('userData'), 'auth.json');
 }
@@ -632,6 +685,17 @@ ipcMain.handle('clear-profile-data', async (event, profileId, what) => {
   } catch(e) {
     return { success: false, message: 'Erro ao limpar: ' + e.message };
   }
+});
+
+ipcMain.handle('load-profiles-data', () => {
+  var data = loadProfilesData();
+  data.profiles = recoverProfilesFromDisk(data.profiles);
+  return data;
+});
+
+ipcMain.handle('save-profiles-data', (event, data) => {
+  saveProfilesData(data);
+  return { success: true };
 });
 
 ipcMain.handle('open-external', (event, url) => {

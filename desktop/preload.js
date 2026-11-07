@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   clearProfileData: (profileId, what) => ipcRenderer.invoke('clear-profile-data', profileId, what),
   onProfileClosed: (callback) => ipcRenderer.on('profile-closed', (event, id) => callback(id)),
+  loadProfilesData: () => ipcRenderer.invoke('load-profiles-data'),
+  saveProfilesData: (data) => ipcRenderer.invoke('save-profiles-data', data),
   logout: () => ipcRenderer.invoke('auth-logout'),
   getCurrentUser: () => ipcRenderer.invoke('get-current-user')
 });
