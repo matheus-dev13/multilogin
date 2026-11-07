@@ -579,11 +579,11 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     }
     if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_host) {
       var proxyServer = profile.proxy_host + ':' + (profile.proxy_port || '');
-      if (profile.proxy_type === 'socks5') {
-        args.push('--proxy-server=socks5://' + proxyServer);
-      } else {
-        args.push('--proxy-server=http://' + proxyServer);
-      }
+      var proxyScheme = 'http';
+      if (profile.proxy_type === 'socks5') proxyScheme = 'socks5';
+      else if (profile.proxy_type === 'socks4') proxyScheme = 'socks4';
+      else if (profile.proxy_type === 'https') proxyScheme = 'https';
+      args.push('--proxy-server=' + proxyScheme + '://' + proxyServer);
       if (profile.proxy_user) {
         var extDir = path.join(profileDir, '_proxy_auth_ext');
         if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
