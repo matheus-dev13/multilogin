@@ -529,7 +529,26 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       if (profile.proxy_type === 'socks5') {
         args.push('--proxy-server=socks5://' + proxyServer);
       } else {
-        args.push('--proxy-server=' + proxyServer);
+        args.push('--proxy-server=http://' + proxyServer);
+      }
+      if (profile.proxy_user) {
+        var extDir = path.join(profileDir, '_proxy_auth_ext');
+        if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
+        var manifest = {
+          manifest_version: 2,
+          name: 'Proxy Auth',
+          version: '1.0',
+          permissions: ['proxy', 'webRequest', 'webRequestBlocking', '<all_urls>'],
+          background: { scripts: ['background.js'], persistent: true }
+        };
+        var bgScript = 'chrome.webRequest.onAuthRequired.addListener(function(details){' +
+          'return{authCredentials:{username:' + JSON.stringify(profile.proxy_user) +
+          ',password:' + JSON.stringify(profile.proxy_pass || '') + '}};' +
+          '},{urls:["<all_urls>"]},["blocking"]);';
+        fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
+        fs.writeFileSync(path.join(extDir, 'background.js'), bgScript);
+        args.push('--load-extension=' + extDir);
+        args.push('--disable-extensions-except=' + extDir);
       }
     }
     if (profile.language) {
