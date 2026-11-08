@@ -578,31 +578,35 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       args.push('--user-agent=' + profile.user_agent);
     }
     if (profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_host) {
-      var proxyServer = profile.proxy_host + ':' + (profile.proxy_port || '');
       var proxyScheme = 'http';
       if (profile.proxy_type === 'socks5') proxyScheme = 'socks5';
       else if (profile.proxy_type === 'socks4') proxyScheme = 'socks4';
       else if (profile.proxy_type === 'https') proxyScheme = 'https';
-      args.push('--proxy-server=' + proxyScheme + '://' + proxyServer);
+      var proxyPort = parseInt(profile.proxy_port) || 8080;
+      var extDir = path.join(profileDir, '_proxy_ext');
+      if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
+      var manifest = {
+        manifest_version: 2,
+        name: 'ObyLogin Proxy',
+        version: '1.0',
+        permissions: ['proxy', 'webRequest', 'webRequestBlocking', '<all_urls>'],
+        background: { scripts: ['background.js'], persistent: true }
+      };
+      var bgLines = [];
+      bgLines.push('var config={mode:"fixed_servers",rules:{singleProxy:{scheme:' +
+        JSON.stringify(proxyScheme) + ',host:' + JSON.stringify(profile.proxy_host) +
+        ',port:' + proxyPort + '},bypassList:["localhost","127.0.0.1"]}};');
+      bgLines.push('chrome.proxy.settings.set({value:config,scope:"regular"},function(){});');
       if (profile.proxy_user) {
-        var extDir = path.join(profileDir, '_proxy_auth_ext');
-        if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
-        var manifest = {
-          manifest_version: 2,
-          name: 'Proxy Auth',
-          version: '1.0',
-          permissions: ['proxy', 'webRequest', 'webRequestBlocking', '<all_urls>'],
-          background: { scripts: ['background.js'], persistent: true }
-        };
-        var bgScript = 'chrome.webRequest.onAuthRequired.addListener(function(details){' +
+        bgLines.push('chrome.webRequest.onAuthRequired.addListener(function(details){' +
           'return{authCredentials:{username:' + JSON.stringify(profile.proxy_user) +
           ',password:' + JSON.stringify(profile.proxy_pass || '') + '}};' +
-          '},{urls:["<all_urls>"]},["blocking"]);';
-        fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
-        fs.writeFileSync(path.join(extDir, 'background.js'), bgScript);
-        args.push('--load-extension=' + extDir);
-        args.push('--disable-extensions-except=' + extDir);
+          '},{urls:["<all_urls>"]},["blocking"]);');
       }
+      fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
+      fs.writeFileSync(path.join(extDir, 'background.js'), bgLines.join('\n'));
+      args.push('--load-extension=' + extDir);
+      args.push('--disable-extensions-except=' + extDir);
     }
     if (profile.language) {
       args.push('--lang=' + profile.language);
