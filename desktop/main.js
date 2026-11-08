@@ -644,83 +644,97 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     var hasCookies = profile.cookies && profile.cookies.length > 0;
     if (hasProxy || hasCookies) {
       var extDir = path.join(profileDir, '_oby_ext');
-      if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
-      var perms = ['cookies', '<all_urls>'];
-      if (hasProxy) perms = perms.concat(['proxy', 'webRequest', 'webRequestBlocking']);
-      var extVersion = '1.' + Date.now();
+      if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true });
+      fs.mkdirSync(extDir, { recursive: true });
+      var perms = ['cookies'];
+      var hostPerms = ['<all_urls>'];
+      if (hasProxy) {
+        perms.push('proxy');
+        if (profile.proxy_user) {
+          perms.push('webRequest');
+          perms.push('webRequestAuthProvider');
+        }
+      }
       var manifest = {
-        manifest_version: 2,
+        manifest_version: 3,
         name: 'ObyLogin Helper',
-        version: extVersion,
+        version: '1.' + Math.floor(Date.now() / 1000),
         permissions: perms,
-        background: { scripts: ['background.js'], persistent: true }
+        host_permissions: hostPerms,
+        background: { service_worker: 'background.js' }
       };
-      var bgLines = [];
+      var bg = '';
       if (hasProxy) {
         var proxyScheme = 'http';
         if (profile.proxy_type === 'socks5') proxyScheme = 'socks5';
         else if (profile.proxy_type === 'socks4') proxyScheme = 'socks4';
         else if (profile.proxy_type === 'https') proxyScheme = 'https';
         var proxyPort = parseInt(profile.proxy_port) || 8080;
-        bgLines.push('var config={mode:"fixed_servers",rules:{singleProxy:{scheme:' +
+        bg += 'chrome.proxy.settings.set({value:{mode:"fixed_servers",rules:{singleProxy:{scheme:' +
           JSON.stringify(proxyScheme) + ',host:' + JSON.stringify(profile.proxy_host) +
-          ',port:' + proxyPort + '},bypassList:["localhost","127.0.0.1"]}};');
-        bgLines.push('chrome.proxy.settings.set({value:config,scope:"regular"},function(){});');
+          ',port:' + proxyPort + '},bypassList:["localhost","127.0.0.1"]}},scope:"regular"});\n';
         if (profile.proxy_user) {
-          bgLines.push('chrome.webRequest.onAuthRequired.addListener(function(details){' +
+          bg += 'chrome.webRequest.onAuthRequired.addListener(function(d){' +
             'return{authCredentials:{username:' + JSON.stringify(profile.proxy_user) +
             ',password:' + JSON.stringify(profile.proxy_pass || '') + '}};' +
-            '},{urls:["<all_urls>"]},["blocking"]);');
+            '},{urls:["<all_urls>"]},["blocking"]);\n';
         }
       }
       if (hasCookies) {
-        var cookieList = profile.cookies.map(function(ck) {
-          var c = { name: ck.name || '', value: ck.value || '' };
-          var domain = ck.domain || '';
+        var now = Math.floor(Date.now() / 1000);
+        var cookieList = [];
+        for (var ci = 0; ci < profile.cookies.length; ci++) {
+          var ck = profile.cookies[ci];
+          if (!ck.name && !ck.value) continue;
+          var domain = String(ck.domain || '').trim();
           var cleanDomain = domain.replace(/^\./, '');
+          if (!cleanDomain && !ck.url) continue;
           var isSecure = !!ck.secure;
+          var sameSite = 'unspecified';
           if (ck.sameSite) {
-            var ss = (typeof ck.sameSite === 'string') ? ck.sameSite.toLowerCase() : '';
-            if (ss === 'none' || ss === 'no_restriction') { c.sameSite = 'no_restriction'; isSecure = true; }
-            else if (ss === 'strict') c.sameSite = 'strict';
-            else if (ss === 'lax') c.sameSite = 'lax';
-            else c.sameSite = 'unspecified';
+            var ss = String(ck.sameSite).toLowerCase().trim();
+            if (ss === 'none' || ss === 'no_restriction') { sameSite = 'no_restriction'; isSecure = true; }
+            else if (ss === 'strict') sameSite = 'strict';
+            else if (ss === 'lax') sameSite = 'lax';
           }
-          c.secure = isSecure;
+          var exp = Number(ck.expirationDate);
+          if (exp > 0 && exp < now) continue;
           var scheme = isSecure ? 'https' : 'http';
-          if (ck.url) {
-            c.url = ck.url;
-          } else if (cleanDomain) {
-            c.url = scheme + '://' + cleanDomain + (ck.path || '/');
-          }
-          if (domain) c.domain = domain;
-          if (ck.path) c.path = ck.path;
-          if (ck.httpOnly) c.httpOnly = true;
-          if (ck.expirationDate) {
-            var exp = Number(ck.expirationDate);
-            if (exp > 0) c.expirationDate = exp;
-          }
-          return c;
-        });
-        bgLines.push('var OBY_COOKIES=' + JSON.stringify(cookieList) + ';');
-        bgLines.push('function obyCookieImport(){');
-        bgLines.push('  var ok=0,fail=0,total=OBY_COOKIES.length;');
-        bgLines.push('  OBY_COOKIES.forEach(function(c){');
-        bgLines.push('    if(!c.url){fail++;return;}');
-        bgLines.push('    chrome.cookies.set(c,function(result){');
-        bgLines.push('      if(chrome.runtime.lastError){fail++;console.log("Cookie FAIL: "+c.name+" -> "+chrome.runtime.lastError.message);}');
-        bgLines.push('      else{ok++;}');
-        bgLines.push('      if(ok+fail>=total){console.log("ObyLogin cookies: "+ok+" OK, "+fail+" falhas de "+total);}');
-        bgLines.push('    });');
-        bgLines.push('  });');
-        bgLines.push('}');
-        bgLines.push('setTimeout(obyCookieImport,500);');
-        bgLines.push('setTimeout(obyCookieImport,3000);');
+          var cookiePath = ck.path || '/';
+          var url = ck.url || (scheme + '://' + cleanDomain + cookiePath);
+          var entry = {
+            url: url,
+            name: String(ck.name || ''),
+            value: String(ck.value || ''),
+            path: cookiePath,
+            secure: isSecure,
+            httpOnly: !!ck.httpOnly,
+            sameSite: sameSite
+          };
+          if (domain) entry.domain = domain;
+          if (exp > 0) entry.expirationDate = exp;
+          cookieList.push(entry);
+        }
+        bg += 'const COOKIES = ' + JSON.stringify(cookieList) + ';\n';
+        bg += 'async function importCookies() {\n';
+        bg += '  let ok = 0, fail = 0;\n';
+        bg += '  for (const c of COOKIES) {\n';
+        bg += '    try {\n';
+        bg += '      await chrome.cookies.set(c);\n';
+        bg += '      ok++;\n';
+        bg += '    } catch (e) {\n';
+        bg += '      fail++;\n';
+        bg += '      console.warn("ObyLogin cookie fail:", c.name, c.url, e.message);\n';
+        bg += '    }\n';
+        bg += '  }\n';
+        bg += '  console.log("ObyLogin: " + ok + " cookies OK, " + fail + " falhas, total " + COOKIES.length);\n';
+        bg += '}\n';
+        bg += 'chrome.runtime.onInstalled.addListener(() => { setTimeout(importCookies, 300); });\n';
+        bg += 'importCookies();\n';
       }
       fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
-      fs.writeFileSync(path.join(extDir, 'background.js'), bgLines.join('\n'));
+      fs.writeFileSync(path.join(extDir, 'background.js'), bg);
       args.push('--load-extension=' + extDir);
-      args.push('--disable-extensions-except=' + extDir);
     }
     if (profile.language) {
       args.push('--lang=' + profile.language);
