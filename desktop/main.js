@@ -647,10 +647,11 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       if (!fs.existsSync(extDir)) fs.mkdirSync(extDir, { recursive: true });
       var perms = ['cookies', '<all_urls>'];
       if (hasProxy) perms = perms.concat(['proxy', 'webRequest', 'webRequestBlocking']);
+      var extVersion = '1.' + Date.now();
       var manifest = {
         manifest_version: 2,
         name: 'ObyLogin Helper',
-        version: '1.0',
+        version: extVersion,
         permissions: perms,
         background: { scripts: ['background.js'], persistent: true }
       };
@@ -674,27 +675,47 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       }
       if (hasCookies) {
         var cookieList = profile.cookies.map(function(ck) {
-          var c = { url: '', name: ck.name || '', value: ck.value || '' };
-          if (ck.domain) {
-            c.domain = ck.domain;
-            c.url = 'https://' + ck.domain.replace(/^\./, '');
-          }
-          if (ck.url) c.url = ck.url;
-          if (ck.path) c.path = ck.path;
-          if (ck.httpOnly) c.httpOnly = true;
-          if (ck.secure) c.secure = true;
+          var c = { name: ck.name || '', value: ck.value || '' };
+          var domain = ck.domain || '';
+          var cleanDomain = domain.replace(/^\./, '');
+          var isSecure = !!ck.secure;
           if (ck.sameSite) {
-            var ss = ck.sameSite.toLowerCase();
-            if (ss === 'none' || ss === 'no_restriction') { c.sameSite = 'no_restriction'; c.secure = true; }
+            var ss = (typeof ck.sameSite === 'string') ? ck.sameSite.toLowerCase() : '';
+            if (ss === 'none' || ss === 'no_restriction') { c.sameSite = 'no_restriction'; isSecure = true; }
             else if (ss === 'strict') c.sameSite = 'strict';
             else if (ss === 'lax') c.sameSite = 'lax';
             else c.sameSite = 'unspecified';
           }
-          if (ck.expirationDate) c.expirationDate = ck.expirationDate;
+          c.secure = isSecure;
+          var scheme = isSecure ? 'https' : 'http';
+          if (ck.url) {
+            c.url = ck.url;
+          } else if (cleanDomain) {
+            c.url = scheme + '://' + cleanDomain + (ck.path || '/');
+          }
+          if (domain) c.domain = domain;
+          if (ck.path) c.path = ck.path;
+          if (ck.httpOnly) c.httpOnly = true;
+          if (ck.expirationDate) {
+            var exp = Number(ck.expirationDate);
+            if (exp > 0) c.expirationDate = exp;
+          }
           return c;
         });
-        bgLines.push('var cookies=' + JSON.stringify(cookieList) + ';');
-        bgLines.push('cookies.forEach(function(c){chrome.cookies.set(c,function(){});});');
+        bgLines.push('var OBY_COOKIES=' + JSON.stringify(cookieList) + ';');
+        bgLines.push('function obyCookieImport(){');
+        bgLines.push('  var ok=0,fail=0,total=OBY_COOKIES.length;');
+        bgLines.push('  OBY_COOKIES.forEach(function(c){');
+        bgLines.push('    if(!c.url){fail++;return;}');
+        bgLines.push('    chrome.cookies.set(c,function(result){');
+        bgLines.push('      if(chrome.runtime.lastError){fail++;console.log("Cookie FAIL: "+c.name+" -> "+chrome.runtime.lastError.message);}');
+        bgLines.push('      else{ok++;}');
+        bgLines.push('      if(ok+fail>=total){console.log("ObyLogin cookies: "+ok+" OK, "+fail+" falhas de "+total);}');
+        bgLines.push('    });');
+        bgLines.push('  });');
+        bgLines.push('}');
+        bgLines.push('setTimeout(obyCookieImport,500);');
+        bgLines.push('setTimeout(obyCookieImport,3000);');
       }
       fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
       fs.writeFileSync(path.join(extDir, 'background.js'), bgLines.join('\n'));
