@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeProfile: (profileId) => ipcRenderer.invoke('close-profile', profileId),
   isProfileRunning: (profileId) => ipcRenderer.invoke('is-profile-running', profileId),
   getRunningProfiles: () => ipcRenderer.invoke('get-running-profiles'),
+  getInstalledBrowsers: () => ipcRenderer.invoke('get-installed-browsers'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   clearProfileData: (profileId, what) => ipcRenderer.invoke('clear-profile-data', profileId, what),
   onProfileClosed: (callback) => ipcRenderer.on('profile-closed', (event, id) => callback(id)),

@@ -364,6 +364,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
           Navegador
         </div>
         <div class="form-row">
+          <label>Navegador</label>
+          <select id="pBrowser">
+            <option value="chrome">Google Chrome</option>
+            <option value="edge">Microsoft Edge</option>
+            <option value="brave">Brave</option>
+            <option value="opera">Opera / Opera GX</option>
+            <option value="vivaldi">Vivaldi</option>
+            <option value="chromium">Chromium</option>
+          </select>
+          <div class="hint" id="pBrowserHint" style="color:var(--green)"></div>
+        </div>
+        <div class="form-row">
           <label>User Agent</label>
           <select id="pUA">
             <option value="">Gerar automaticamente</option>
@@ -717,7 +729,9 @@ function renderProfiles(){
     $('profileList').innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h3>'+(profiles.length?'Nenhum resultado':'Nenhum perfil')+'</h3><p>'+(profiles.length?'Tente outra busca ou grupo.':'Crie seu primeiro perfil de navegador.')+'</p>'+(profiles.length?'':'<button class="btn btn-primary" onclick="openCreateProfile()">Criar perfil</button>')+'</div>';
     return;
   }
-  var html = '<table class="profile-table"><thead><tr><th class="check"><input type="checkbox" onchange="toggleAll(this.checked)"></th><th style="width:50px">N°</th><th style="width:80px">ID</th><th>Grupo</th><th>Nome</th><th>IP</th><th>Última</th><th>Plataforma</th><th>Tags</th><th>Observação</th><th>Ação</th></tr></thead><tbody>';
+  var browserShort = { chrome:'Chrome', edge:'Edge', brave:'Brave', opera:'Opera', vivaldi:'Vivaldi', chromium:'Chromium' };
+  var browserColors = { chrome:'#4285f4', edge:'#0078d4', brave:'#fb542b', opera:'#ff1b2d', vivaldi:'#ef3939', chromium:'#4587f3' };
+  var html = '<table class="profile-table"><thead><tr><th class="check"><input type="checkbox" onchange="toggleAll(this.checked)"></th><th style="width:50px">N°</th><th style="width:80px">ID</th><th>Grupo</th><th>Nome</th><th>Navegador</th><th>IP</th><th>Última</th><th>Status</th><th>Tags</th><th>Observação</th><th>Ação</th></tr></thead><tbody>';
   list.forEach(function(p, idx){
     var g = groups.find(function(x){ return x.id === p.group_id; });
     var proxyIp = p.proxy_type && p.proxy_type !== 'none' && p.proxy_host ? p.proxy_host + ':' + (p.proxy_port||'') : '';
@@ -726,12 +740,16 @@ function renderProfiles(){
     var openBtn = p.status === 'running' ? '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();stopProfile(\''+p.id+'\')">Fechar</button>' : '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openProfile(\''+p.id+'\')">Abrir</button>';
     var groupName = g ? esc(g.name) : '-';
     var notes = p.notes ? esc(p.notes.length > 30 ? p.notes.slice(0,30)+'...' : p.notes) : '<span style="color:var(--faint)">-</span>';
+    var bt = p.browser_type || 'chrome';
+    var bLabel = browserShort[bt] || 'Chrome';
+    var bColor = browserColors[bt] || '#4285f4';
     html += '<tr oncontextmenu="showCtx(event,\''+p.id+'\')" ondblclick="openProfile(\''+p.id+'\')">';
     html += '<td class="check"><input type="checkbox" '+(selectedIds.has(p.id)?'checked':'')+' onchange="toggleSelect(\''+p.id+'\',this.checked)"></td>';
     html += '<td style="font-size:13px;color:var(--muted)">'+(idx+1)+'</td>';
     html += '<td><span class="profile-id" style="font-size:12px">'+p.id.slice(0,8)+'</span></td>';
     html += '<td style="font-size:13px">'+(g?'<span style="color:'+g.color+'">'+groupName+'</span>':groupName)+'</td>';
     html += '<td><div class="profile-name"><div class="profile-avatar" style="background:'+getProfileColor(p)+'">'+getInitials(p.name)+'</div><div><div class="profile-nm">'+esc(p.name)+'</div></div></div></td>';
+    html += '<td style="font-size:12px"><span style="color:'+bColor+';font-weight:600">'+bLabel+'</span></td>';
     html += '<td style="font-size:12px">'+proxyFlag+'</td>';
     html += '<td style="font-size:12px;color:var(--muted)">'+fmt(p.updated_at||p.created_at)+'</td>';
     html += '<td style="font-size:13px;color:var(--muted)"><span class="status-dot '+p.status+'" style="font-size:12px">'+statusLabel(p.status)+'</span></td>';
@@ -846,6 +864,7 @@ function resetForm(){
   $('pGroup').value = '';
   $('pNotes').value = '';
   $('pTags').value = '';
+  $('pBrowser').value = 'chrome';
   $('pUA').value = '';
   $('pUACustom').value = '';
   $('pPlatform').value = 'Windows';
@@ -864,6 +883,7 @@ function resetForm(){
   $('pCookies').value = '';
   $('pStartUrl').value = '';
   toggleProxy();
+  checkBrowserInstalled();
   switchTab(document.querySelector('.tab'), 'tab-basic');
 }
 
@@ -872,6 +892,7 @@ function fillForm(p){
   $('pGroup').value = p.group_id || '';
   $('pNotes').value = p.notes || '';
   $('pTags').value = (p.tags||[]).join(', ');
+  $('pBrowser').value = p.browser_type || 'chrome';
   $('pUACustom').value = p.user_agent || '';
   $('pPlatform').value = p.platform || 'Windows';
   $('pLang').value = p.language || 'pt-BR';
@@ -889,6 +910,7 @@ function fillForm(p){
   $('pCookies').value = p.cookies ? JSON.stringify(p.cookies, null, 2) : '';
   $('pStartUrl').value = p.start_url || '';
   toggleProxy();
+  checkBrowserInstalled();
   switchTab(document.querySelector('.tab'), 'tab-basic');
 }
 
@@ -909,6 +931,7 @@ window.saveProfile = function(){
   var data = {
     name: name,
     group_id: $('pGroup').value || null,
+    browser_type: $('pBrowser').value || 'chrome',
     notes: $('pNotes').value.trim(),
     tags: $('pTags').value.split(',').map(function(t){return t.trim();}).filter(Boolean),
     user_agent: $('pUACustom').value.trim() || randomUA(),
@@ -1115,6 +1138,42 @@ window.switchTab = function(btn, panelId){
 window.toggleProxy = function(){
   $('proxyFields').style.display = $('pProxyType').value !== 'none' ? '' : 'none';
 };
+
+var installedBrowsersCache = null;
+var BROWSER_LABELS = { chrome:'Google Chrome', edge:'Microsoft Edge', brave:'Brave', opera:'Opera / Opera GX', vivaldi:'Vivaldi', chromium:'Chromium' };
+
+function checkBrowserInstalled(){
+  var hint = $('pBrowserHint');
+  if (!hint) return;
+  if (!window.electronAPI || !window.electronAPI.getInstalledBrowsers) {
+    hint.textContent = '';
+    return;
+  }
+  var sel = $('pBrowser').value;
+  function update(list){
+    installedBrowsersCache = list;
+    var opts = $('pBrowser').options;
+    for (var i = 0; i < opts.length; i++) {
+      var v = opts[i].value;
+      var installed = list.indexOf(v) >= 0;
+      opts[i].textContent = (BROWSER_LABELS[v]||v) + (installed ? '' : ' (nao instalado)');
+    }
+    if (list.indexOf(sel) >= 0) {
+      hint.textContent = 'Instalado';
+      hint.style.color = 'var(--green)';
+    } else {
+      hint.textContent = 'Nao encontrado no sistema. Se selecionado, usara outro disponivel.';
+      hint.style.color = 'var(--yellow)';
+    }
+  }
+  if (installedBrowsersCache) { update(installedBrowsersCache); return; }
+  window.electronAPI.getInstalledBrowsers().then(update).catch(function(){ hint.textContent = ''; });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  var bs = $('pBrowser');
+  if (bs) bs.addEventListener('change', checkBrowserInstalled);
+});
 
 window.checkProxy = function(){
   var r = $('proxyCheckResult');

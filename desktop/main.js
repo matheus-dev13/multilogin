@@ -14,38 +14,94 @@ const profileTabs = new Map();
 const runningChromeProfiles = new Map();
 const TOOLBAR_HEIGHT = 76;
 
-function findChromePath() {
+var BROWSER_PATHS = {
+  chrome: {
+    win32: [
+      ['Google', 'Chrome', 'Application', 'chrome.exe']
+    ],
+    darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
+    linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable']
+  },
+  brave: {
+    win32: [
+      ['BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe']
+    ],
+    darwin: ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'],
+    linux: ['/usr/bin/brave-browser', '/usr/bin/brave-browser-stable']
+  },
+  edge: {
+    win32: [
+      ['Microsoft', 'Edge', 'Application', 'msedge.exe']
+    ],
+    darwin: ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'],
+    linux: ['/usr/bin/microsoft-edge', '/usr/bin/microsoft-edge-stable']
+  },
+  opera: {
+    win32: [
+      ['Opera Software', 'Opera Stable', 'opera.exe'],
+      ['Opera Software', 'Opera GX Stable', 'opera.exe']
+    ],
+    darwin: ['/Applications/Opera.app/Contents/MacOS/Opera', '/Applications/Opera GX.app/Contents/MacOS/Opera'],
+    linux: ['/usr/bin/opera', '/usr/bin/opera-stable']
+  },
+  vivaldi: {
+    win32: [
+      ['Vivaldi', 'Application', 'vivaldi.exe']
+    ],
+    darwin: ['/Applications/Vivaldi.app/Contents/MacOS/Vivaldi'],
+    linux: ['/usr/bin/vivaldi', '/usr/bin/vivaldi-stable']
+  },
+  chromium: {
+    win32: [
+      ['Chromium', 'Application', 'chrome.exe']
+    ],
+    darwin: ['/Applications/Chromium.app/Contents/MacOS/Chromium'],
+    linux: ['/usr/bin/chromium-browser', '/usr/bin/chromium']
+  }
+};
+
+function findBrowserPath(browserType) {
+  var type = browserType || 'chrome';
+  var def = BROWSER_PATHS[type];
+  if (!def) def = BROWSER_PATHS.chrome;
   var paths = [];
   if (process.platform === 'win32') {
     var pf = process.env.PROGRAMFILES || 'C:\\Program Files';
     var pf86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
     var local = process.env.LOCALAPPDATA || '';
-    paths = [
-      path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(pf86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(pf, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(pf86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'),
-      path.join(local, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
-    ];
+    (def.win32 || []).forEach(function(parts) {
+      paths.push(path.join(pf, ...parts));
+      paths.push(path.join(pf86, ...parts));
+      paths.push(path.join(local, ...parts));
+    });
   } else if (process.platform === 'darwin') {
-    paths = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
-    ];
+    paths = (def.darwin || []).slice();
   } else {
-    paths = [
-      '/usr/bin/google-chrome',
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/usr/bin/brave-browser'
-    ];
+    paths = (def.linux || []).slice();
   }
   for (var i = 0; i < paths.length; i++) {
     try { if (fs.existsSync(paths[i])) return paths[i]; } catch(e) {}
   }
   return null;
+}
+
+function findAnyBrowser() {
+  var order = ['chrome', 'edge', 'brave', 'opera', 'vivaldi', 'chromium'];
+  for (var i = 0; i < order.length; i++) {
+    var p = findBrowserPath(order[i]);
+    if (p) return { type: order[i], path: p };
+  }
+  return null;
+}
+
+function getInstalledBrowsers() {
+  var result = [];
+  var types = Object.keys(BROWSER_PATHS);
+  for (var i = 0; i < types.length; i++) {
+    var p = findBrowserPath(types[i]);
+    if (p) result.push(types[i]);
+  }
+  return result;
 }
 
 let mainWindow = null;
@@ -559,9 +615,16 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     return { success: true, message: 'Perfil já está rodando' };
   }
   try {
-    var chromePath = findChromePath();
-    if (!chromePath) {
-      return { success: false, message: 'Google Chrome não encontrado. Instale o Chrome para usar o ObyLogin.' };
+    var browserType = profile.browser_type || 'chrome';
+    var browserPath = findBrowserPath(browserType);
+    if (!browserPath) {
+      var fallback = findAnyBrowser();
+      if (fallback) {
+        browserPath = fallback.path;
+        browserType = fallback.type;
+      } else {
+        return { success: false, message: 'Nenhum navegador Chromium encontrado. Instale Chrome, Edge, Brave, Opera ou Vivaldi.' };
+      }
     }
     var profileDir = path.join(getProfilesDir(), profile.id);
     if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
@@ -642,7 +705,7 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       args.push('--lang=' + profile.language);
     }
     args.push(profile.start_url || 'https://www.google.com');
-    var proc = spawn(chromePath, args, { detached: true, stdio: 'ignore' });
+    var proc = spawn(browserPath, args, { detached: true, stdio: 'ignore' });
     proc.unref();
     runningChromeProfiles.set(profile.id, proc);
     proc.on('exit', function() {
@@ -651,7 +714,8 @@ ipcMain.handle('launch-profile', async (event, profile) => {
         if (!w.isDestroyed()) w.webContents.send('profile-closed', profile.id);
       });
     });
-    return { success: true, message: 'Perfil "' + profile.name + '" aberto no Chrome' };
+    var browserNames = { chrome: 'Chrome', brave: 'Brave', edge: 'Edge', opera: 'Opera', vivaldi: 'Vivaldi', chromium: 'Chromium' };
+    return { success: true, message: 'Perfil "' + profile.name + '" aberto no ' + (browserNames[browserType] || 'navegador') };
   } catch (err) {
     return { success: false, message: err.message };
   }
@@ -682,6 +746,10 @@ ipcMain.handle('is-profile-running', (event, profileId) => {
 
 ipcMain.handle('get-running-profiles', () => {
   return Array.from(runningChromeProfiles.keys());
+});
+
+ipcMain.handle('get-installed-browsers', () => {
+  return getInstalledBrowsers();
 });
 
 ipcMain.handle('clear-profile-data', async (event, profileId, what) => {
