@@ -18,6 +18,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "cdp.js",
       "browser-preload.js",
       "login-preload.js",
       "firebase-config.js",

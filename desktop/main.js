@@ -2,6 +2,8 @@ const { app, BrowserWindow, BrowserView, ipcMain, session, shell, net, Menu, dia
 const path = require('path');
 const fs = require('fs');
 const { execFile, spawn } = require('child_process');
+const crypto = require('crypto');
+const cdp = require('./cdp');
 const { autoUpdater } = require('electron-updater');
 const FIREBASE = require('./firebase-config');
 
@@ -641,116 +643,76 @@ ipcMain.handle('launch-profile', async (event, profile) => {
       args.push('--user-agent=' + profile.user_agent);
     }
     var hasProxy = profile.proxy_type && profile.proxy_type !== 'none' && profile.proxy_host;
-    var hasCookies = profile.cookies && profile.cookies.length > 0;
-    if (hasProxy || hasCookies) {
-      var extDir = path.join(profileDir, '_oby_ext');
-      if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true });
-      fs.mkdirSync(extDir, { recursive: true });
-      var perms = ['cookies'];
-      var hostPerms = ['<all_urls>'];
-      if (hasProxy) {
-        perms.push('proxy');
-        if (profile.proxy_user) {
-          perms.push('webRequest');
-          perms.push('webRequestAuthProvider');
-        }
+    var extDir = path.join(profileDir, '_oby_ext');
+    if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true });
+    if (hasProxy) {
+      var proxyScheme = 'http';
+      if (profile.proxy_type === 'socks5') proxyScheme = 'socks5';
+      else if (profile.proxy_type === 'socks4') proxyScheme = 'socks4';
+      else if (profile.proxy_type === 'https') proxyScheme = 'https';
+      var proxyPort = parseInt(profile.proxy_port) || 8080;
+      // Chrome 137+ ignores --load-extension, so the flag is what keeps traffic off the real IP.
+      args.push('--proxy-server=' + proxyScheme + '://' + profile.proxy_host + ':' + proxyPort);
+      if (profile.proxy_user) {
+        fs.mkdirSync(extDir, { recursive: true });
+        var manifest = {
+          manifest_version: 3,
+          name: 'ObyLogin Proxy Auth',
+          version: '1.0',
+          permissions: ['webRequest', 'webRequestAuthProvider'],
+          host_permissions: ['<all_urls>'],
+          background: { service_worker: 'background.js' }
+        };
+        var bg = 'chrome.webRequest.onAuthRequired.addListener(function(d){' +
+          'return{authCredentials:{username:' + JSON.stringify(profile.proxy_user) +
+          ',password:' + JSON.stringify(profile.proxy_pass || '') + '}};' +
+          '},{urls:["<all_urls>"]},["blocking"]);\n';
+        fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
+        fs.writeFileSync(path.join(extDir, 'background.js'), bg);
+        args.push('--load-extension=' + extDir);
       }
-      var manifest = {
-        manifest_version: 3,
-        name: 'ObyLogin Helper',
-        version: '1.' + Math.floor(Date.now() / 1000),
-        permissions: perms,
-        host_permissions: hostPerms,
-        background: { service_worker: 'background.js' }
-      };
-      var bg = '';
-      if (hasProxy) {
-        var proxyScheme = 'http';
-        if (profile.proxy_type === 'socks5') proxyScheme = 'socks5';
-        else if (profile.proxy_type === 'socks4') proxyScheme = 'socks4';
-        else if (profile.proxy_type === 'https') proxyScheme = 'https';
-        var proxyPort = parseInt(profile.proxy_port) || 8080;
-        bg += 'chrome.proxy.settings.set({value:{mode:"fixed_servers",rules:{singleProxy:{scheme:' +
-          JSON.stringify(proxyScheme) + ',host:' + JSON.stringify(profile.proxy_host) +
-          ',port:' + proxyPort + '},bypassList:["localhost","127.0.0.1"]}},scope:"regular"});\n';
-        if (profile.proxy_user) {
-          bg += 'chrome.webRequest.onAuthRequired.addListener(function(d){' +
-            'return{authCredentials:{username:' + JSON.stringify(profile.proxy_user) +
-            ',password:' + JSON.stringify(profile.proxy_pass || '') + '}};' +
-            '},{urls:["<all_urls>"]},["blocking"]);\n';
-        }
-      }
-      if (hasCookies) {
-        var now = Math.floor(Date.now() / 1000);
-        var cookieList = [];
-        for (var ci = 0; ci < profile.cookies.length; ci++) {
-          var ck = profile.cookies[ci];
-          if (!ck.name && !ck.value) continue;
-          var domain = String(ck.domain || '').trim();
-          var cleanDomain = domain.replace(/^\./, '');
-          if (!cleanDomain && !ck.url) continue;
-          var isSecure = !!ck.secure;
-          var sameSite = 'unspecified';
-          if (ck.sameSite) {
-            var ss = String(ck.sameSite).toLowerCase().trim();
-            if (ss === 'none' || ss === 'no_restriction') { sameSite = 'no_restriction'; isSecure = true; }
-            else if (ss === 'strict') sameSite = 'strict';
-            else if (ss === 'lax') sameSite = 'lax';
-          }
-          var exp = Number(ck.expirationDate);
-          if (exp > 0 && exp < now) continue;
-          var scheme = isSecure ? 'https' : 'http';
-          var cookiePath = ck.path || '/';
-          var url = ck.url || (scheme + '://' + cleanDomain + cookiePath);
-          var entry = {
-            url: url,
-            name: String(ck.name || ''),
-            value: String(ck.value || ''),
-            path: cookiePath,
-            secure: isSecure,
-            httpOnly: !!ck.httpOnly,
-            sameSite: sameSite
-          };
-          if (domain) entry.domain = domain;
-          if (exp > 0) entry.expirationDate = exp;
-          cookieList.push(entry);
-        }
-        bg += 'const COOKIES = ' + JSON.stringify(cookieList) + ';\n';
-        bg += 'async function importCookies() {\n';
-        bg += '  let ok = 0, fail = 0;\n';
-        bg += '  for (const c of COOKIES) {\n';
-        bg += '    try {\n';
-        bg += '      await chrome.cookies.set(c);\n';
-        bg += '      ok++;\n';
-        bg += '    } catch (e) {\n';
-        bg += '      fail++;\n';
-        bg += '      console.warn("ObyLogin cookie fail:", c.name, c.url, e.message);\n';
-        bg += '    }\n';
-        bg += '  }\n';
-        bg += '  console.log("ObyLogin: " + ok + " cookies OK, " + fail + " falhas, total " + COOKIES.length);\n';
-        bg += '}\n';
-        bg += 'chrome.runtime.onInstalled.addListener(() => { setTimeout(importCookies, 300); });\n';
-        bg += 'importCookies();\n';
-      }
-      fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
-      fs.writeFileSync(path.join(extDir, 'background.js'), bg);
-      args.push('--load-extension=' + extDir);
     }
     if (profile.language) {
       args.push('--lang=' + profile.language);
     }
-    args.push(profile.start_url || 'https://www.google.com');
+    var startUrl = profile.start_url || 'https://www.google.com';
+    var cookieMarker = path.join(profileDir, '_oby_cookies_hash');
+    var cookieHash = (profile.cookies && profile.cookies.length)
+      ? crypto.createHash('sha1').update(JSON.stringify(profile.cookies)).digest('hex') : '';
+    var previousHash = '';
+    try { previousHash = fs.readFileSync(cookieMarker, 'utf8').trim(); } catch (e) {}
+    var cdpCookies = cookieHash && cookieHash !== previousHash ? cdp.toCdpCookies(profile.cookies) : [];
+    // DevTools port is used to inject cookies and to close the browser cleanly (so it saves cookies to disk).
+    try { fs.unlinkSync(path.join(profileDir, 'DevToolsActivePort')); } catch (e) {}
+    args.push('--remote-debugging-port=0');
+    args.push(cdpCookies.length ? 'about:blank' : startUrl);
     var proc = spawn(browserPath, args, { detached: true, stdio: 'ignore' });
     proc.unref();
     runningChromeProfiles.set(profile.id, proc);
+    var importedAt = 0;
     proc.on('exit', function() {
       runningChromeProfiles.delete(profile.id);
+      // Chrome flushes cookies to disk ~30s after a change; re-import next time if it died before that.
+      if (importedAt && Date.now() - importedAt < 35000) {
+        try { fs.unlinkSync(cookieMarker); } catch (e) {}
+      }
       BrowserWindow.getAllWindows().forEach(function(w) {
         if (!w.isDestroyed()) w.webContents.send('profile-closed', profile.id);
       });
     });
     var browserNames = { chrome: 'Chrome', brave: 'Brave', edge: 'Edge', opera: 'Opera', vivaldi: 'Vivaldi', chromium: 'Chromium' };
-    return { success: true, message: 'Perfil "' + profile.name + '" aberto no ' + (browserNames[browserType] || 'navegador') };
+    var msg = 'Perfil "' + profile.name + '" aberto no ' + (browserNames[browserType] || 'navegador');
+    if (cdpCookies.length) {
+      try {
+        var res = await cdp.injectCookiesAndOpen(profileDir, cdpCookies, startUrl);
+        importedAt = Date.now();
+        fs.writeFileSync(cookieMarker, cookieHash);
+        msg += ' - ' + res.ok + ' cookies importados' + (res.fail ? ' (' + res.fail + ' rejeitados)' : '');
+      } catch (cookieErr) {
+        msg += ' - falha ao importar cookies: ' + cookieErr.message;
+      }
+    }
+    return { success: true, message: msg };
   } catch (err) {
     return { success: false, message: err.message };
   }
@@ -760,14 +722,33 @@ ipcMain.handle('launch-profile', async (event, profile) => {
 ipcMain.handle('close-profile', async (event, profileId) => {
   var proc = runningChromeProfiles.get(profileId);
   if (proc) {
+    var waitExit = function(ms) {
+      return new Promise(function(resolve) {
+        if (proc.exitCode !== null || proc.signalCode !== null) return resolve(true);
+        var timer = setTimeout(function() { resolve(false); }, ms);
+        proc.once('exit', function() { clearTimeout(timer); resolve(true); });
+      });
+    };
+    // Browser.close is a clean shutdown that writes cookies/logins to disk; signals/taskkill /F may not.
+    var exited = false;
     try {
-      if (process.platform === 'win32') {
-        spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
-      } else {
-        process.kill(-proc.pid, 'SIGTERM');
-      }
-    } catch(e) {
-      try { proc.kill('SIGTERM'); } catch(e2) {}
+      var conn = await cdp.connect(await cdp.waitForDevToolsUrl(path.join(getProfilesDir(), profileId), 1500));
+      conn.send('Browser.close').catch(function() {});
+      exited = await waitExit(8000);
+      conn.close();
+    } catch (e) {}
+    if (!exited) {
+      try {
+        if (process.platform === 'win32') spawn('taskkill', ['/pid', String(proc.pid), '/T'], { stdio: 'ignore' });
+        else proc.kill('SIGTERM');
+      } catch (e) {}
+      exited = await waitExit(5000);
+    }
+    if (!exited) {
+      try {
+        if (process.platform === 'win32') spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+        else process.kill(-proc.pid, 'SIGKILL');
+      } catch(e) {}
     }
     runningChromeProfiles.delete(profileId);
     return { success: true };
