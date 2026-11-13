@@ -378,7 +378,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1
         <div class="form-row">
           <label>User Agent</label>
           <select id="pUA">
-            <option value="">Gerar automaticamente</option>
+            <option value="">Original do navegador (recomendado)</option>
           </select>
           <div class="hint">Ou cole um User Agent customizado abaixo</div>
         </div>
@@ -664,6 +664,8 @@ function save(){
 function load(){
   return window.electronAPI.loadProfilesData().then(function(data){
     if (data.profiles && data.profiles.length) profiles = data.profiles;
+    // Old auto-assigned UAs don't match the real browser version and make Google block login.
+    profiles.forEach(function(p){ if (USER_AGENTS.indexOf(p.user_agent) >= 0) p.user_agent = ''; });
     if (data.groups && data.groups.length) groups = data.groups;
   }).catch(function(){});
 }
@@ -934,7 +936,7 @@ window.saveProfile = function(){
     browser_type: $('pBrowser').value || 'chrome',
     notes: $('pNotes').value.trim(),
     tags: $('pTags').value.split(',').map(function(t){return t.trim();}).filter(Boolean),
-    user_agent: $('pUACustom').value.trim() || randomUA(),
+    user_agent: $('pUACustom').value.trim(),
     platform: $('pPlatform').value,
     screen_w: parseInt(res[0])||1920,
     screen_h: parseInt(res[1])||1080,
@@ -1356,7 +1358,7 @@ USER_AGENTS.forEach(function(ua, i){
   o.textContent = (os?os[0]:'') + ' - ' + (short?short[0]:'Agent '+(i+1));
   uaSel.appendChild(o);
 });
-uaSel.addEventListener('change', function(){ if (this.value) $('pUACustom').value = this.value; });
+uaSel.addEventListener('change', function(){ $('pUACustom').value = this.value; });
 
 renderDashboard();
 

@@ -2,6 +2,7 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 // Minimal WebSocket client for the Chrome DevTools Protocol (no npm dependency).
 class CdpConnection {
@@ -189,25 +190,41 @@ async function setCookies(conn, cookies) {
   }
 }
 
-// Browser must have been started with --remote-debugging-port=0 and about:blank.
-async function injectCookiesAndOpen(profileDir, cookies, startUrl) {
-  const wsUrl = await waitForDevToolsUrl(profileDir, 20000);
-  const conn = await connect(wsUrl);
+// Runs a short-lived hidden browser on the profile so the visible one never has a DevTools port
+// (Google refuses sign-in while one is open). Browser.close makes Chrome write the cookies to disk.
+async function importCookiesHeadless(browserPath, profileDir, cookies) {
+  try { fs.unlinkSync(path.join(profileDir, 'DevToolsActivePort')); } catch (e) {}
+  const proc = spawn(browserPath, [
+    '--headless=new',
+    '--user-data-dir=' + profileDir,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-sync',
+    '--remote-debugging-port=0',
+    'about:blank'
+  ], { stdio: 'ignore' });
+  const exited = new Promise((resolve) => {
+    proc.once('exit', resolve);
+    proc.once('error', resolve);
+  });
+  const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   try {
-    const result = await setCookies(conn, cookies);
-    const { targetInfos } = await conn.send('Target.getTargets');
-    const page = (targetInfos || []).find((t) => t.type === 'page');
-    if (page) {
-      const { sessionId } = await conn.send('Target.attachToTarget', { targetId: page.targetId, flatten: true });
-      await conn.send('Page.navigate', { url: startUrl }, sessionId);
-      await conn.send('Target.detachFromTarget', { sessionId }).catch(() => {});
-    } else {
-      await conn.send('Target.createTarget', { url: startUrl });
+    const conn = await connect(await waitForDevToolsUrl(profileDir, 20000));
+    try {
+      const result = await setCookies(conn, cookies);
+      conn.send('Browser.close').catch(() => {});
+      await Promise.race([exited, timeout(10000)]);
+      return result;
+    } finally {
+      conn.close();
     }
-    return result;
   } finally {
-    conn.close();
+    if (proc.exitCode === null && proc.signalCode === null) {
+      try { proc.kill(); } catch (e) {}
+      await Promise.race([exited, timeout(5000)]);
+    }
+    try { fs.unlinkSync(path.join(profileDir, 'DevToolsActivePort')); } catch (e) {}
   }
 }
 
-module.exports = { connect, waitForDevToolsUrl, toCdpCookies, setCookies, injectCookiesAndOpen };
+module.exports = { connect, waitForDevToolsUrl, toCdpCookies, setCookies, importCookiesHeadless };

@@ -682,37 +682,29 @@ ipcMain.handle('launch-profile', async (event, profile) => {
     var previousHash = '';
     try { previousHash = fs.readFileSync(cookieMarker, 'utf8').trim(); } catch (e) {}
     var cdpCookies = cookieHash && cookieHash !== previousHash ? cdp.toCdpCookies(profile.cookies) : [];
-    // DevTools port is used to inject cookies and to close the browser cleanly (so it saves cookies to disk).
-    try { fs.unlinkSync(path.join(profileDir, 'DevToolsActivePort')); } catch (e) {}
-    args.push('--remote-debugging-port=0');
-    args.push(cdpCookies.length ? 'about:blank' : startUrl);
+    var cookieMsg = '';
+    if (cdpCookies.length) {
+      try {
+        var res = await cdp.importCookiesHeadless(browserPath, profileDir, cdpCookies);
+        fs.writeFileSync(cookieMarker, cookieHash);
+        cookieMsg = ' - ' + res.ok + ' cookies importados' + (res.fail ? ' (' + res.fail + ' rejeitados)' : '');
+      } catch (cookieErr) {
+        cookieMsg = ' - falha ao importar cookies: ' + cookieErr.message;
+      }
+    }
+    // Never launch the visible browser with a DevTools port: Google blocks sign-in when it is open.
+    args.push(startUrl);
     var proc = spawn(browserPath, args, { detached: true, stdio: 'ignore' });
     proc.unref();
     runningChromeProfiles.set(profile.id, proc);
-    var importedAt = 0;
     proc.on('exit', function() {
       runningChromeProfiles.delete(profile.id);
-      // Chrome flushes cookies to disk ~30s after a change; re-import next time if it died before that.
-      if (importedAt && Date.now() - importedAt < 35000) {
-        try { fs.unlinkSync(cookieMarker); } catch (e) {}
-      }
       BrowserWindow.getAllWindows().forEach(function(w) {
         if (!w.isDestroyed()) w.webContents.send('profile-closed', profile.id);
       });
     });
     var browserNames = { chrome: 'Chrome', brave: 'Brave', edge: 'Edge', opera: 'Opera', vivaldi: 'Vivaldi', chromium: 'Chromium' };
-    var msg = 'Perfil "' + profile.name + '" aberto no ' + (browserNames[browserType] || 'navegador');
-    if (cdpCookies.length) {
-      try {
-        var res = await cdp.injectCookiesAndOpen(profileDir, cdpCookies, startUrl);
-        importedAt = Date.now();
-        fs.writeFileSync(cookieMarker, cookieHash);
-        msg += ' - ' + res.ok + ' cookies importados' + (res.fail ? ' (' + res.fail + ' rejeitados)' : '');
-      } catch (cookieErr) {
-        msg += ' - falha ao importar cookies: ' + cookieErr.message;
-      }
-    }
-    return { success: true, message: msg };
+    return { success: true, message: 'Perfil "' + profile.name + '" aberto no ' + (browserNames[browserType] || 'navegador') + cookieMsg };
   } catch (err) {
     return { success: false, message: err.message };
   }
@@ -729,21 +721,12 @@ ipcMain.handle('close-profile', async (event, profileId) => {
         proc.once('exit', function() { clearTimeout(timer); resolve(true); });
       });
     };
-    // Browser.close is a clean shutdown that writes cookies/logins to disk; signals/taskkill /F may not.
-    var exited = false;
+    // taskkill without /F sends WM_CLOSE, so Chrome shuts down cleanly and saves cookies/logins.
     try {
-      var conn = await cdp.connect(await cdp.waitForDevToolsUrl(path.join(getProfilesDir(), profileId), 1500));
-      conn.send('Browser.close').catch(function() {});
-      exited = await waitExit(8000);
-      conn.close();
+      if (process.platform === 'win32') spawn('taskkill', ['/pid', String(proc.pid), '/T'], { stdio: 'ignore' });
+      else proc.kill('SIGTERM');
     } catch (e) {}
-    if (!exited) {
-      try {
-        if (process.platform === 'win32') spawn('taskkill', ['/pid', String(proc.pid), '/T'], { stdio: 'ignore' });
-        else proc.kill('SIGTERM');
-      } catch (e) {}
-      exited = await waitExit(5000);
-    }
+    var exited = await waitExit(8000);
     if (!exited) {
       try {
         if (process.platform === 'win32') spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
